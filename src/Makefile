@@ -1,4 +1,5 @@
 # Makefile atualizado para automatizar OBJETOS e dependências
+.DEFAULT_GOAL := ted
 PROJ_NAME = ted
 LIBS = -lm
 # Tenta find primeiro, se falhar usa wildcard
@@ -14,7 +15,7 @@ CFLAGS = -ggdb -O0 -std=c99 -fstack-protector-all -Werror=implicit-function-decl
 LDFLAGS = -O0
 
 # Regra principal
-$(PROJ_NAME): $(OBJETOS)
+ted: $(OBJETOS)
 	$(CC) -o $(PROJ_NAME) $(LDFLAGS) $(OBJETOS) $(LIBS)
 
 # Regra para compilar arquivos .c em .o com dependências
@@ -25,6 +26,8 @@ $(PROJ_NAME): $(OBJETOS)
 # Target para limpeza
 clean:
 	rm -f $(OBJETOS) $(PROJ_NAME)
+
+.PHONY: clean debug run ted
 
 # Target para debug (mostra variáveis)
 debug:

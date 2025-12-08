@@ -1,5 +1,4 @@
 #include "geo_handler.h"
-#include "../fila/fila.h"
 #include "../formas/circulo/circulo.h"
 #include "../formas/formas.h"
 #include "../formas/linha/linha.h"
@@ -7,15 +6,16 @@
 #include "../formas/text_style/text_style.h"
 #include "../formas/texto/texto.h"
 #include "../manipuladorDeArquivo/manipuladorDeArquivo.h"
-#include "../pilha/pilha.h"
+#include "../utils/lista/lista.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct
 {
-    Fila shapesQueue;
-    Stack shapesStackToFree;
-    Queue svgQueue;
+    LinkedList shapesList;
+    LinkedList shapesToFreeList;
+    LinkedList svgList;
 } Ground_t;
 
 typedef struct
@@ -43,12 +43,12 @@ Ground execute_geo_commands(FileData fileData, const char *output_path,
         exit(1);
     }
 
-    ground->shapesQueue = queue_create();
-    ground->shapesStackToFree = stack_create();
-    ground->svgQueue = queue_create();
-    while (!queue_is_empty(getLinesQueue(fileData)))
+    ground->shapesList = list_create();
+    ground->shapesToFreeList = list_create();
+    ground->svgList = list_create();
+    while (!list_is_empty(getLinesQueue(fileData)))
     {
-        char *line = (char *)queue_dequeue(getLinesQueue(fileData));
+        char *line = (char *)list_remove_front(getLinesQueue(fileData));
         char *command = strtok(line, " ");
 
         // Comando círculo: c i x y r corb corp
@@ -91,28 +91,28 @@ Ground execute_geo_commands(FileData fileData, const char *output_path,
 void destroy_geo_waste(Ground ground)
 {
     Ground_t *ground_t = (Ground_t *)ground;
-    queue_destroy(ground_t->shapesQueue);
-    queue_destroy(ground_t->svgQueue);
-    while (!stack_is_empty(ground_t->shapesStackToFree))
+    list_destroy(ground_t->shapesList);
+    list_destroy(ground_t->svgList);
+    while (!list_is_empty(ground_t->shapesToFreeList))
     {
-        Shape_t *shape = stack_pop(ground_t->shapesStackToFree);
+        Shape_t *shape = (Shape_t *)list_remove_front(ground_t->shapesToFreeList);
         free(shape->data);
         free(shape);
     }
-    stack_destroy(ground_t->shapesStackToFree);
+    list_destroy(ground_t->shapesToFreeList);
     free(ground);
 }
 
-Queue get_ground_queue(Ground ground)
+LinkedList get_ground_queue(Ground ground)
 {
     Ground_t *ground_t = (Ground_t *)ground;
-    return ground_t->shapesQueue;
+    return ground_t->shapesList;
 }
 
-Stack get_ground_shapes_stack_to_free(Ground ground)
+LinkedList get_ground_shapes_stack_to_free(Ground ground)
 {
     Ground_t *ground_t = (Ground_t *)ground;
-    return ground_t->shapesStackToFree;
+    return ground_t->shapesToFreeList;
 }
 
 /**
@@ -140,9 +140,9 @@ static void executar_comando_circulo(Ground_t *ground)
     }
     shape->type = CIRCLE;
     shape->data = circulo;
-    queue_enqueue(ground->shapesQueue, shape);
-    stack_push(ground->shapesStackToFree, shape);
-    queue_enqueue(ground->svgQueue, shape);
+    list_insert_back(ground->shapesList, shape);
+    list_insert_back(ground->shapesToFreeList, shape);
+    list_insert_back(ground->svgList, shape);
 }
 
 static void execute_rectangle_command(Ground_t *ground)
@@ -167,9 +167,9 @@ static void execute_rectangle_command(Ground_t *ground)
     }
     shape->type = RECTANGLE;
     shape->data = rectangle;
-    queue_enqueue(ground->shapesQueue, shape);
-    stack_push(ground->shapesStackToFree, shape);
-    queue_enqueue(ground->svgQueue, shape);
+    list_insert_back(ground->shapesList, shape);
+    list_insert_back(ground->shapesToFreeList, shape);
+    list_insert_back(ground->svgList, shape);
 }
 
 static void execute_line_command(Ground_t *ground)
@@ -192,9 +192,9 @@ static void execute_line_command(Ground_t *ground)
     }
     shape->type = LINE;
     shape->data = line;
-    queue_enqueue(ground->shapesQueue, shape);
-    stack_push(ground->shapesStackToFree, shape);
-    queue_enqueue(ground->svgQueue, shape);
+    list_insert_back(ground->shapesList, shape);
+    list_insert_back(ground->shapesToFreeList, shape);
+    list_insert_back(ground->svgList, shape);
 }
 
 static void execute_text_command(Ground_t *ground)
@@ -218,9 +218,9 @@ static void execute_text_command(Ground_t *ground)
     }
     shape->type = TEXT;
     shape->data = text_obj;
-    queue_enqueue(ground->shapesQueue, shape);
-    stack_push(ground->shapesStackToFree, shape);
-    queue_enqueue(ground->svgQueue, shape);
+    list_insert_back(ground->shapesList, shape);
+    list_insert_back(ground->shapesToFreeList, shape);
+    list_insert_back(ground->svgList, shape);
 }
 
 static void execute_text_style_command(Ground_t *ground)
@@ -240,9 +240,9 @@ static void execute_text_style_command(Ground_t *ground)
     }
     shape->type = TEXT_STYLE;
     shape->data = text_style_obj;
-    queue_enqueue(ground->shapesQueue, shape);
-    stack_push(ground->shapesStackToFree, shape);
-    queue_enqueue(ground->svgQueue, shape);
+    list_insert_back(ground->shapesList, shape);
+    list_insert_back(ground->shapesToFreeList, shape);
+    list_insert_back(ground->svgList, shape);
 }
 
 static void create_svg_queue(Ground_t *ground, const char *output_path,
@@ -299,9 +299,9 @@ static void create_svg_queue(Ground_t *ground, const char *output_path,
     fprintf(
         file,
         "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1000 1000\">\n");
-    while (!queue_is_empty(ground->svgQueue))
+    while (!list_is_empty(ground->svgList))
     {
-        Shape_t *shape = queue_dequeue(ground->svgQueue);
+        Shape_t *shape = (Shape_t *)list_remove_front(ground->svgList);
         if (shape != NULL)
         {
             if (shape->type == CIRCLE)
