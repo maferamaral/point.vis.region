@@ -2,26 +2,23 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <float.h> // Para DBL_MAX
+#include <float.h>
 #include <math.h>
-
-// Includes das formas
 #include "../formas/circulo/circulo.h"
 #include "../formas/retangulo/retangulo.h"
 #include "../formas/linha/linha.h"
 #include "../formas/texto/texto.h"
-#include "../formas/formas.h" // Enum TipoForma
+#include "../formas/formas.h"
 #include "../utils/lista/lista.h"
 #include "../geometria/geometria.h"
 
-// Estrutura interna para encapsular a forma e saber seu tipo
 typedef struct {
     TipoForma tipo;
     void *forma;
 } ElementoGeo;
 
 struct Geo_st {
-    LinkedList formas; // Lista de ElementoGeo*
+    LinkedList formas;
 };
 
 Geo geo_criar() {
@@ -32,7 +29,6 @@ Geo geo_criar() {
     return g;
 }
 
-// Função auxiliar para inserir na lista
 static void inserir_forma(Geo geo, TipoForma tipo, void *objeto) {
     struct Geo_st *g = (struct Geo_st *)geo;
     ElementoGeo *el = malloc(sizeof(ElementoGeo));
@@ -43,38 +39,34 @@ static void inserir_forma(Geo geo, TipoForma tipo, void *objeto) {
 
 void geo_ler(Geo geo, const char *path) {
     FILE *f = fopen(path, "r");
-    if (!f) {
-        printf("Erro: Nao foi possivel abrir o arquivo .geo: %s\n", path);
-        return;
-    }
+    if (!f) return;
 
     char buf[1024];
     while (fgets(buf, sizeof(buf), f)) {
         char cmd[10];
         if (sscanf(buf, "%s", cmd) != 1) continue;
 
-        if (strcmp(cmd, "c") == 0) { // Círculo
+        if (strcmp(cmd, "c") == 0) {
             int id; double x, y, r; char cb[50], cp[50];
             sscanf(buf, "c %d %lf %lf %lf %s %s", &id, &x, &y, &r, cb, cp);
             void *c = circulo_criar(id, x, y, r, cb, cp);
             inserir_forma(geo, CIRCLE, c);
         }
-        else if (strcmp(cmd, "r") == 0) { // Retângulo
+        else if (strcmp(cmd, "r") == 0) {
             int id; double x, y, w, h; char cb[50], cp[50];
             sscanf(buf, "r %d %lf %lf %lf %lf %s %s", &id, &x, &y, &w, &h, cb, cp);
             void *r = retangulo_criar(id, x, y, w, h, cb, cp);
             inserir_forma(geo, RECTANGLE, r);
         }
-        else if (strcmp(cmd, "l") == 0) { // Linha
+        else if (strcmp(cmd, "l") == 0) {
             int id; double x1, y1, x2, y2; char color[50];
             sscanf(buf, "l %d %lf %lf %lf %lf %s", &id, &x1, &y1, &x2, &y2, color);
             void *l = line_create(id, x1, y1, x2, y2, color);
             inserir_forma(geo, LINE, l);
         }
-        else if (strcmp(cmd, "t") == 0) { // Texto
+        else if (strcmp(cmd, "t") == 0) {
             int id; double x, y; char cb[50], cp[50], a;
             char txt[256];
-            // Leitura segura do texto
             int offset = 0;
             char temp_cmd[10];
             sscanf(buf, "%s %d %lf %lf %s %s %c%n", temp_cmd, &id, &x, &y, cb, cp, &a, &offset);
@@ -127,7 +119,7 @@ void geo_escrever_svg(Geo geo, FILE *svg) {
             char anchor = text_get_anchor(t);
             const char *svg_anchor = "start";
             if (anchor == 'm') svg_anchor = "middle";
-            if (anchor == 'e' || anchor == 'f') svg_anchor = "end"; // 'f' ou 'e' dependendo do padrão
+            if (anchor == 'e' || anchor == 'f') svg_anchor = "end";
 
             fprintf(svg, "<text x=\"%.2f\" y=\"%.2f\" stroke=\"%s\" fill=\"%s\" text-anchor=\"%s\">%s</text>\n",
                 text_get_x(t), text_get_y(t), text_get_border_color(t), 
@@ -148,7 +140,6 @@ LinkedList geo_obter_todas_barreiras(Geo geo) {
     for (int i = 0; i < n; i++) {
         ElementoGeo *el = (ElementoGeo *)list_get_at(g->formas, i);
         
-        // Apenas Linhas e Retângulos bloqueiam a visão
         if (el->tipo == LINE) {
             double x1 = line_get_x1(el->forma);
             double y1 = line_get_y1(el->forma);
@@ -182,6 +173,49 @@ LinkedList geo_obter_todas_barreiras(Geo geo) {
         }
     }
     return segmentos;
+}
+
+LinkedList geo_gerar_biombo(Geo geo, double margem) {
+    struct Geo_st *g = (struct Geo_st *)geo;
+    LinkedList biombo = list_create();
+
+    double min_x = DBL_MAX, min_y = DBL_MAX;
+    double max_x = -DBL_MAX, max_y = -DBL_MAX;
+
+    if (list_is_empty(g->formas)) {
+        min_x = 0; min_y = 0; max_x = 1000; max_y = 1000;
+    } else {
+        geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
+    }
+
+    min_x -= margem;
+    min_y -= margem;
+    max_x += margem;
+    max_y += margem;
+
+    Ponto p1 = ponto_criar(min_x, min_y);
+    Ponto p2 = ponto_criar(max_x, min_y);
+    Ponto p3 = ponto_criar(max_x, max_y);
+    Ponto p4 = ponto_criar(min_x, max_y);
+
+    Segmento *s_baixo = malloc(sizeof(Segmento)); 
+    *s_baixo = segmento_criar(p1, p2);
+
+    Segmento *s_direita = malloc(sizeof(Segmento)); 
+    *s_direita = segmento_criar(p2, p3);
+
+    Segmento *s_cima = malloc(sizeof(Segmento)); 
+    *s_cima = segmento_criar(p3, p4);
+
+    Segmento *s_esquerda = malloc(sizeof(Segmento)); 
+    *s_esquerda = segmento_criar(p4, p1);
+
+    list_insert_back(biombo, s_baixo);
+    list_insert_back(biombo, s_direita);
+    list_insert_back(biombo, s_cima);
+    list_insert_back(biombo, s_esquerda);
+
+    return biombo;
 }
 
 void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, double *max_y) {
@@ -240,7 +274,6 @@ void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, 
     if (max_y) *max_y = My;
 }
 
-// Funções auxiliares novas
 void geo_remover_forma(Geo geo, int id) {
     struct Geo_st *g = (struct Geo_st *)geo;
     int n = list_size(g->formas);
@@ -254,26 +287,15 @@ void geo_remover_forma(Geo geo, int id) {
         else if (el->tipo == TEXT) el_id = text_get_id(el->forma);
         
         if (el_id == id) {
-            // Remove da lista
-            // Como a list_remove_at requer implementação, vamos usar um hack se não tiver
-            // Assumindo index search na list_get_at, removemos o node.
+            list_remove_at(g->formas, i);
             
-            // ATENÇÃO: list_remove_at não faz parte do contrato explicito no user instructions,
-            // mas list_remove sim? Ou list_pop?
-            // Vamos usar o list_remove se tivessemos o node. 
-            // Como só temos get_at, vamos usar list_remove(list, data).
-            // Precisamos do ponteiro exato.
-            
-            list_remove_at(g->formas, i); // remove o ponteiro el pelo indice
-            
-            // Desaloca a forma
             if (el->tipo == CIRCLE) circulo_destruir(el->forma);
             else if (el->tipo == RECTANGLE) retangulo_destruir(el->forma);
             else if (el->tipo == LINE) line_destroy(el->forma);
             else if (el->tipo == TEXT) text_destroy(el->forma);
             
             free(el);
-            return; // Removido
+            return;
         }
     }
 }
@@ -310,20 +332,15 @@ void geo_alterar_cor(Geo geo, int id, const char *cor) {
 void geo_clonar_forma(Geo geo, int id) {
     struct Geo_st *g = (struct Geo_st *)geo;
     int n = list_size(g->formas);
-    // Para evitar loop infinito ao adicionar novo item, iteramos até o tamanho original
     for (int i = 0; i < n; i++) {
         ElementoGeo *el = (ElementoGeo *)list_get_at(g->formas, i);
         int el_id = -1;
         if (el->tipo == CIRCLE) el_id = circulo_get_id(el->forma);
         else if (el->tipo == RECTANGLE) el_id = retangulo_get_id(el->forma);
         
-        // Clonagem só faz sentido para formas principais normalmente
         if (el_id == id) {
-            // O enunciado nao especifica geometricamente onde o clone vai.
-            // Geralmente se poe deslocado ou apenas novo id.
-            // Vamos criar uma copia deslocada levemente para visualização.
             double dx = 10.0, dy = 10.0;
-            int new_id = id + 10000; // Gera ID novo
+            int new_id = id + 10000;
 
             if (el->tipo == CIRCLE) {
                 void* c = el->forma;
@@ -337,41 +354,9 @@ void geo_clonar_forma(Geo geo, int id) {
                                              retangulo_get_cor_borda(r), retangulo_get_cor_preenchimento(r));
                 inserir_forma(geo, RECTANGLE, novo);
             }
-            // Outros tipos ignora
             return;
         }
     }
-}
-
-LinkedList geo_gerar_biombo(Geo geo, double margem) {
-    struct Geo_st *g = (struct Geo_st *)geo;
-    LinkedList biombo = list_create();
-
-    double min_x, min_y, max_x, max_y;
-    geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
-
-    // Aplica margem
-    min_x -= margem;
-    min_y -= margem;
-    max_x += margem;
-    max_y += margem;
-
-    Ponto p1 = ponto_criar(min_x, min_y);
-    Ponto p2 = ponto_criar(max_x, min_y);
-    Ponto p3 = ponto_criar(max_x, max_y);
-    Ponto p4 = ponto_criar(min_x, max_y);
-
-    Segmento *s1 = malloc(sizeof(Segmento)); *s1 = segmento_criar(p1, p2);
-    Segmento *s2 = malloc(sizeof(Segmento)); *s2 = segmento_criar(p2, p3);
-    Segmento *s3 = malloc(sizeof(Segmento)); *s3 = segmento_criar(p3, p4);
-    Segmento *s4 = malloc(sizeof(Segmento)); *s4 = segmento_criar(p4, p1);
-
-    list_insert_back(biombo, s1);
-    list_insert_back(biombo, s2);
-    list_insert_back(biombo, s3);
-    list_insert_back(biombo, s4);
-
-    return biombo;
 }
 
 void geo_destruir(Geo geo) {
@@ -386,7 +371,6 @@ void geo_destruir(Geo geo) {
         else if (el->tipo == RECTANGLE) retangulo_destruir(el->forma);
         else if (el->tipo == LINE) line_destroy(el->forma);
         else if (el->tipo == TEXT) text_destroy(el->forma);
-        // Se houver TEXT_STYLE na lista, adicionar destruição aqui
 
         free(el);
     }
