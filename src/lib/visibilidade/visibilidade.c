@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include "../tree/tree.h"
 #include "../utils/lista/lista.h"
-#include "../sort/sort.h"
+#include "../utils/sort/sort.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
