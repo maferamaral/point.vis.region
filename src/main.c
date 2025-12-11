@@ -5,6 +5,7 @@
 #include "lib/geo/geo.h"
 #include "lib/qry/qry.h"
 #include "lib/visibilidade/visibilidade.h"
+#include "lib/svg/svg.h"
 
 // Função auxiliar para extrair o nome do arquivo sem extensão e caminho
 void extract_filename(const char *path, char *dest) {
@@ -83,9 +84,13 @@ int main(int argc, char *argv[])
     }
 
     // 3. Escrever SVG
-    fprintf(svg_file, "<svg xmlns=\"http://www.w3.org/2000/svg\">\n");
+    double min_x, min_y, max_x, max_y;
+    geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
+    double margin = 100.0;
+    
+    svg_iniciar(svg_file, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
     geo_escrever_svg(geo, svg_file);
-    fprintf(svg_file, "</svg>\n");
+    svg_finalizar(svg_file);
     fclose(svg_file);
 
     printf("SVG gerado com sucesso em: %s\n", svg_path);
