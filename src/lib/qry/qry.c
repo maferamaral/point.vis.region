@@ -228,8 +228,8 @@ static bool forma_atingida(void *forma, TipoForma tipo, PoligonoVisibilidade pol
 }
 
 void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const char *geoName) {
-    char txtName[512];
-    sprintf(txtName, "%s.txt", outPath);
+    char txtName[1024];
+    snprintf(txtName, sizeof(txtName), "%s.txt", outPath);
     FILE *ftxt = fopen(txtName, "w");
     FILE *fqry = fopen(qryPath, "r");
     
@@ -412,8 +412,8 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
     }
     
     // Final Combined SVG
-    char finalSvg[512];
-    sprintf(finalSvg, "%s.svg", outPath);
+    char finalSvg[1024];
+    snprintf(finalSvg, sizeof(finalSvg), "%s.svg", outPath);
     FILE *favg = fopen(finalSvg, "w");
     start_svg(favg);
     

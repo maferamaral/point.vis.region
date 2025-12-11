@@ -69,8 +69,8 @@ int main(int argc, char *argv[])
     char filename[256];
     extract_filename(inputs_idx, filename);
     
-    char svg_path[512];
-    sprintf(svg_path, "%s/%s.svg", output_dir, filename);
+    char svg_path[1024];
+    snprintf(svg_path, sizeof(svg_path), "%s/%s.svg", output_dir, filename);
 
     FILE *svg_file = fopen(svg_path, "w");
     if (!svg_file) {
@@ -92,9 +92,9 @@ int main(int argc, char *argv[])
         char qryName[256];
         extract_filename(query_file, qryName);
 
-        char outPath[512];
+        char outPath[1024];
         // Formato base: saida/nomegeo-nomeqry
-        sprintf(outPath, "%s/%s-%s", output_dir, filename, qryName);
+        snprintf(outPath, sizeof(outPath), "%s/%s-%s", output_dir, filename, qryName);
 
         qry_processar(geo, query_file, outPath, filename);
     }
