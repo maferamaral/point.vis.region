@@ -4,10 +4,18 @@
 #include <stdio.h>
 #include "../tree/tree.h"
 #include "../utils/lista/lista.h"
+#include "../sort/sort.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// Declaração da variável global de controle de sort
+static char g_sort_method = 'q';
+
+void visibilidade_set_sort_method(char method) {
+    g_sort_method = method;
+}
 
 // Definição concreta do polígono (opaco no .h)
 struct PoligonoVisibilidade_st {
@@ -75,8 +83,7 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
         double ang2 = angulo_polar(centro, seg->p2);
 
         // Define ordem angular simples (-PI a PI)
-        // Correção para cruzar o eixo -PI (não implementada aqui para simplificar, 
-        // assume-se que o "biombo" mitiga problemas de borda)
+        // Correção para cruzar o eixo -PI (não implementada aqui para simplificar)
         
         bool p1_primeiro = (ang1 < ang2);
         if (fabs(ang1 - ang2) > M_PI) p1_primeiro = !p1_primeiro; // Corrige volta completa
@@ -96,7 +103,19 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
         k++;
     }
 
-    qsort(eventos, qtd_eventos, sizeof(Evento*), comparar_eventos);
+    // Escolhe método de ordenação
+    switch (g_sort_method) {
+        case 'm':
+            merge_sort(eventos, qtd_eventos, sizeof(Evento*), comparar_eventos);
+            break;
+        case 'i':
+            insertion_sort(eventos, qtd_eventos, sizeof(Evento*), comparar_eventos);
+            break;
+        case 'q':
+        default:
+            qsort(eventos, qtd_eventos, sizeof(Evento*), comparar_eventos);
+            break;
+    }
 
     // 2. Varredura
     BinaryTree ativos = tree_create(comparar_segmentos_ativos);

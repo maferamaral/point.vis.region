@@ -37,6 +37,16 @@ char *concat_path(const char *dir, const char *file) {
     return full_path;
 }
 
+// Função auxiliar para verificar presença de flag
+int has_flag(int argc, char *argv[], const char *flag) {
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], flag) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // Função auxiliar para obter valor de argumento
 const char *get_arg_value(int argc, char *argv[], const char *flag) {
     for (int i = 1; i < argc - 1; i++) {
@@ -55,10 +65,24 @@ int main(int argc, char *argv[])
     const char *output_dir = get_arg_value(argc, argv, "-o");
     const char *query_file = get_arg_value(argc, argv, "-q");
 
+    const char *sort_arg = get_arg_value(argc, argv, "-to");
+    int insertion_flag = has_flag(argc, argv, "-i");
+
     // Verificar argumentos obrigatórios
     if (!geo_name || !output_dir) {
-        printf("Uso: %s [-e <base_path>] -f <arquivo.geo> -o <diretorio_saida> [-q <arquivo.qry>]\n", argv[0]);
+        printf("Uso: %s [-e <base_path>] -f <arquivo.geo> -o <diretorio_saida> [-q <arquivo.qry>] [-to <sort_type>] [-i]\n", argv[0]);
         return 1;
+    }
+
+    // Configurar ordenação
+    if (insertion_flag) {
+        visibilidade_set_sort_method('i');
+    } else if (sort_arg) {
+        // Pode ser "mergesort", "m", etc. Vamos pegar a primeira letra se for m/q/i
+        char c = sort_arg[0];
+        if (c == 'm' || c == 'q' || c == 'i') {
+             visibilidade_set_sort_method(c);
+        }
     }
 
     // Concatenar caminho base com arquivo .geo

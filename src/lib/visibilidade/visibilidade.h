@@ -18,4 +18,11 @@ bool visibilidade_ponto_atingido(PoligonoVisibilidade pol, Ponto p);
 
 void visibilidade_destruir(PoligonoVisibilidade pol);
 
+
+// Define o método de ordenação a ser usado:
+// 'q' = qsort (default)
+// 'm' = merge_sort
+// 'i' = insertion_sort
+void visibilidade_set_sort_method(char method);
+
 #endif
