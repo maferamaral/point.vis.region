@@ -52,24 +52,20 @@ int comparar_eventos(const void *a, const void *b) {
     Evento *e1 = *(Evento **)a;
     Evento *e2 = *(Evento **)b;
 
-    if (e1->angulo < e2->angulo - EPSILON) return -1;
-    if (e1->angulo > e2->angulo + EPSILON) return 1;
+    // 1. By Angle
+    if (fabs(e1->angulo - e2->angulo) > EPSILON) {
+        return (e1->angulo < e2->angulo) ? -1 : 1;
+    }
 
-    // Same angle: Process START before END ?
-    // Rule says: "Se tipos diferem: Process START before END" 
-    // Wait, if a wall starts and another ends at same angle/ray:
-    // If I process END first, I might lose the "blocking" wall before adding the new one?
-    // If I process START first, I add the new one, then remove the old one. Safe overlap (or zero overlap).
-    // Guide says: "Process START before END".
-    
+    // 2. Tie-breaker: Process START before END (to avoid gaps)
     if (e1->tipo != e2->tipo) {
         return (e1->tipo == TIPO_INICIO) ? -1 : 1;
     }
 
-    // Same type: Sort by distance?
-    // "Sort by distance (closer first)"
-    if (e1->dist < e2->dist - EPSILON) return -1;
-    if (e1->dist > e2->dist + EPSILON) return 1;
+    // 3. Tie-breaker: Sort by distance (closer first if both are START)
+    if (fabs(e1->dist - e2->dist) > EPSILON) {
+        return (e1->dist < e2->dist) ? -1 : 1;
+    }
 
     return 0;
 }
@@ -178,6 +174,10 @@ static bool esta_na_frente(Ponto x, Ponto v, Segmento *biombo) {
 
 // --- Main Function --- //
 
+static bool pontos_iguais(Ponto p1, Ponto p2) {
+    return distancia(p1, p2) < EPSILON;
+}
+
 PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
     g_centro = centro;
     LinkedList local_segs = preparar_segmentos(centro, barreiras);
@@ -243,6 +243,10 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
     LinkedList ativos = list_create();
     PoligonoVisibilidade poly = poligono_criar(centro);
     
+    // Deduplication state
+    Ponto ultimo_ponto = {0,0};
+    bool tem_ultimo = false;
+    
     Segmento *biombo_atual = NULL;
     // We don't need p_biombo_start if we just cast rays to current biombo.
 
@@ -301,29 +305,24 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
             // Intersection with OLD biombo at current angle?
             if (biombo_atual) {
                 Ponto inter_old = interseccao_raio_segmento(centro, e->angulo, *biombo_atual);
-                if (!isnan(inter_old.x)) poligono_adicionar_vertice(poly, inter_old);
+                if (!isnan(inter_old.x)) {
+                    if (!tem_ultimo || !pontos_iguais(ultimo_ponto, inter_old)) {
+                         poligono_adicionar_vertice(poly, inter_old);
+                         ultimo_ponto = inter_old;
+                         tem_ultimo = true;
+                    }
+                }
             }
-            
-            // Add the Vertex Point itself?
-            // If vertex is "ON" the ray.
-            // Usually correct to add vertex if it's the cause of event.
-            // But if we just switch from far wall to near wall (START event of near),
-            // the near wall starts at 'dist'.
-            // If switch from near wall to far wall (END event of near), 
-            // the near wall ends at 'dist'.
-            
-            // However, just adding intersection with NEW biombo might be enough?
-            // Wait, if we hit a START vertex V of a new closer wall:
-            // 1. Ray hits old wall at dist_old.
-            // 2. Vertex V is at dist_in < dist_old.
-            // 3. New wall starts at V.
-            // 4. We should Output V. 
-            // Using "interseccao_raio_segmento(..., novo_biombo)" at angle 'e->angulo' 
-            // SHOULD return V if V is conceptually on the segment start.
             
             if (novo_biombo) {
                 Ponto inter_new = interseccao_raio_segmento(centro, e->angulo, *novo_biombo);
-                if (!isnan(inter_new.x)) poligono_adicionar_vertice(poly, inter_new);
+                if (!isnan(inter_new.x)) {
+                     if (!tem_ultimo || !pontos_iguais(ultimo_ponto, inter_new)) {
+                        poligono_adicionar_vertice(poly, inter_new);
+                        ultimo_ponto = inter_new;
+                        tem_ultimo = true;
+                     }
+                }
             }
             
             biombo_atual = novo_biombo;
@@ -331,7 +330,11 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
              // Biombo didn't change, but we are at a vertex.
              // If this vertex belongs to the current biombo, we should add it (corner).
              if (biombo_atual && (e->seg == biombo_atual)) {
-                 poligono_adicionar_vertice(poly, e->p);
+                 if (!tem_ultimo || !pontos_iguais(ultimo_ponto, e->p)) {
+                     poligono_adicionar_vertice(poly, e->p);
+                     ultimo_ponto = e->p;
+                     tem_ultimo = true;
+                 }
              }
         }
     }
