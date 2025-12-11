@@ -12,13 +12,6 @@
 #include "../utils/lista/lista.h"
 #include "../geometria/geometria.h"
 
-// Estrutura interna para encapsular a forma e saber seu tipo
-typedef struct
-{
-    TipoForma tipo;
-    void *forma;
-} ElementoGeo;
-
 struct Geo_st
 {
     LinkedList formas; // Lista de ElementoGeo*
@@ -263,4 +256,25 @@ void geo_destruir(Geo geo)
 
     list_destroy(g->formas); // Destrói a estrutura da lista
     free(g);
+}
+
+// Implementação de helper genérico para obter ID de uma forma
+int get_id_generico(void *forma, TipoForma tipo)
+{
+    if (!forma)
+        return -1;
+
+    switch (tipo)
+    {
+    case CIRCLE:
+        return circulo_get_id(forma);
+    case RECTANGLE:
+        return retangulo_get_id(forma);
+    case LINE:
+        return line_get_id(forma);
+    case TEXT:
+        return text_get_id(forma);
+    default:
+        return -1;
+    }
 }

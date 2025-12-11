@@ -4,8 +4,23 @@
 #include <stdio.h>
 #include "../utils/lista/lista.h"
 #include "../geometria/geometria.h"
+#include "../formas/formas.h"
+#include "../formas/circulo/circulo.h"
+#include "../formas/retangulo/retangulo.h"
+#include "../formas/linha/linha.h"
+#include "../formas/texto/texto.h"
 
 typedef void *Geo;
+
+// Elemento armazenado na lista de formas: expõe tipo e ponteiro genérico
+typedef struct
+{
+    TipoForma tipo;
+    void *forma;
+} ElementoGeo;
+
+// Acesso genérico ao id de uma forma, usado por módulos que iteram a lista de formas
+int get_id_generico(void *forma, TipoForma tipo);
 
 /**
  * Cria a estrutura de dados para armazenar a cidade.
