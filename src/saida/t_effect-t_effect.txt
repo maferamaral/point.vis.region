@@ -1,0 +1,23 @@
+[*] a
+	1 (r) -> 8 (anteparo)
+	1 (r) -> 9 (anteparo)
+	1 (r) -> 10 (anteparo)
+	1 (r) -> 11 (anteparo)
+	2 (l) -> 12 (anteparo)
+[*] p x=125.00 y=125.00 green
+	4 l
+	5 l
+	9 l
+	10 l
+[*] d x=225.00 y=225.00
+[*] cln x=300.00 y=300.00 dx=50.00 dy=50.00
+	13 l (clone do 3 l)
+	14 l (clone do 4 l)
+	15 l (clone do 5 l)
+	16 l (clone do 6 l)
+	17 l (clone do 7 l)
+	18 l (clone do 8 l)
+	19 l (clone do 9 l)
+	20 l (clone do 10 l)
+	21 l (clone do 11 l)
+	22 l (clone do 12 l)

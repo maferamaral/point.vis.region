@@ -24,6 +24,17 @@ static void end_svg(FILE *f) {
     if (f) fprintf(f, "</svg>\n");
 }
 
+// Helper for TXT report types
+static const char* get_type_str(TipoForma t) {
+    switch(t) {
+        case CIRCLE: return "c";
+        case RECTANGLE: return "r";
+        case LINE: return "l";
+        case TEXT: return "t";
+        default: return "?";
+    }
+}
+
 static int get_max_id(LinkedList formas) {
     int max = 0;
     int n = list_size(formas);
@@ -120,8 +131,6 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         int ids[4];
         for(int k=0; k<4; k++) ids[k] = (*id_counter)++;
 
-        fprintf(ftxt, "  %d (retangulo) -> %d, %d, %d, %d\n", id_original, ids[0], ids[1], ids[2], ids[3]);
-
         for (int k = 0; k < 4; k++) {
             Segmento *s = malloc(sizeof(Segmento));
             s->p1 = pts[k];
@@ -129,6 +138,8 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
             s->id = ids[k];
             strncpy(s->cor, cor, 31);
             list_insert_back(barriers, s);
+            // OUTPUT FORMAT: \tID (TYPE) -> ID (anteparo)
+            fprintf(ftxt, "\t%d (%s) -> %d (anteparo)\n", id_original, get_type_str(tipo), s->id);
         }
 
     } else if (tipo == LINE) {
@@ -140,7 +151,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->id = (*id_counter)++;
         strncpy(s->cor, cor, 31);
         list_insert_back(barriers, s);
-        fprintf(ftxt, "  %d (linha) -> %d\n", id_original, s->id);
+        fprintf(ftxt, "\t%d (%s) -> %d (anteparo)\n", id_original, get_type_str(tipo), s->id);
 
     } else if (tipo == CIRCLE) {
         double cx = circulo_get_x(forma);
@@ -161,7 +172,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->id = (*id_counter)++;
         strncpy(s->cor, cor, 31);
         list_insert_back(barriers, s);
-        fprintf(ftxt, "  %d (circulo) -> %d\n", id_original, s->id);
+        fprintf(ftxt, "\t%d (%s) -> %d (anteparo)\n", id_original, get_type_str(tipo), s->id);
 
     } else if (tipo == TEXT) {
         double xt = text_get_x(forma);
@@ -193,7 +204,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->id = (*id_counter)++;
         strncpy(s->cor, cor, 31);
         list_insert_back(barriers, s);
-        fprintf(ftxt, "  %d (texto) -> %d\n", id_original, s->id);
+        fprintf(ftxt, "\t%d (%s) -> %d (anteparo)\n", id_original, get_type_str(tipo), s->id);
     }
 }
 
@@ -266,7 +277,7 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                 j = atoi(sj);
                 if (so) opt = so[0];
             
-                fprintf(ftxt, "a:\n");
+                fprintf(ftxt, "[*] a\n");
                 
                 int k = 0;
                 while (k < list_size(formas)) {
@@ -316,6 +327,15 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
            }
 
            if (!actual_sfx) continue; // Error parsing
+           
+           // Print Command Header
+           if (strcmp(cmd, "d") == 0) {
+               fprintf(ftxt, "[*] d x=%.2f y=%.2f\n", x, y);
+           } else if (strcmp(cmd, "p") == 0) {
+               fprintf(ftxt, "[*] p x=%.2f y=%.2f %s\n", x, y, cor);
+           } else if (strcmp(cmd, "cln") == 0) {
+               fprintf(ftxt, "[*] cln x=%.2f y=%.2f dx=%.2f dy=%.2f\n", x, y, dx, dy);
+           }
 
            // Calc vis
            Ponto centro = {x, y};
@@ -331,19 +351,24 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                 bool atingido = forma_atingida(el->forma, el->tipo, poly);
                 
                 if (atingido) {
+                    int id_shape = get_id_generico(el->forma, el->tipo);
                     if (strcmp(cmd, "d") == 0) {
-                        fprintf(ftxt, "Id: %d destroyed.\n", get_id_generico(el->forma, el->tipo));
+                        fprintf(ftxt, "\t%d %s\n", id_shape, get_type_str(el->tipo));
                         ElementoGeo *removed = list_remove_at(formas, k);
                         free(removed);
                         continue; 
                     } else if (strcmp(cmd, "p") == 0) {
                         if (cor) {
                             set_color_generic(el->forma, el->tipo, cor);
-                            fprintf(ftxt, "Id: %d painted %s.\n", get_id_generico(el->forma, el->tipo), cor);
+                            fprintf(ftxt, "\t%d %s\n", id_shape, get_type_str(el->tipo));
                         }
                     } else if (strcmp(cmd, "cln") == 0) {
                         clone_generic(formas, el->forma, el->tipo, dx, dy);
-                        fprintf(ftxt, "Id: %d cloned.\n", get_id_generico(el->forma, el->tipo));
+                        // clone_generic adds to 'formas', need to get ID of added? 
+                        // It adds to back.
+                        ElementoGeo *new_el = list_get_at(formas, list_size(formas)-1);
+                        int new_id = get_id_generico(new_el->forma, new_el->tipo);
+                        fprintf(ftxt, "\t%d %s (clone do %d %s)\n", new_id, get_type_str(new_el->tipo), id_shape, get_type_str(el->tipo));
                     }
                 }
                 k++;
@@ -358,21 +383,15 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                
                if (atingido && s->id >= 0) { // Don't allow destroying bbox (id -1)
                    if (strcmp(cmd, "d") == 0) {
-                       fprintf(ftxt, "Barrier Id: %d destroyed.\n", s->id);
+                       fprintf(ftxt, "\t%d l\n", s->id); // Using 'l' (line) for barrier
                        Segmento *rem = list_remove_at(all_barriers, k);
                        free(rem);
-                       initial_barrier_count--; // Adjust count as list shrinks? 
-                       // No, if we remove at k, list shifts. k should NOT increment.
-                       // But initial_barrier_count should decrease to avoid reading invalid indices?
-                       // Or just 'continue' without k++ logic, but limit total iterations?
-                       // Safer: iterate backwards? or handle index carefully.
-                       // Using k-- after remove? 
-                       k--; // Re-evaluate index k which now holds next element
-                       initial_barrier_count--; // List shrank
+                       k--;
+                       initial_barrier_count--; 
                    } else if (strcmp(cmd, "p") == 0) {
                        if (cor) {
                            strncpy(s->cor, cor, 31);
-                           fprintf(ftxt, "Barrier Id: %d painted %s.\n", s->id, cor);
+                           fprintf(ftxt, "\t%d l\n", s->id);
                        }
                    } else if (strcmp(cmd, "cln") == 0) {
                        // Clone barrier
@@ -381,10 +400,9 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                        new_s->p1.x += dx; new_s->p1.y += dy;
                        new_s->p2.x += dx; new_s->p2.y += dy;
                        new_s->id = seg_id_counter++; // New ID
-                       fprintf(ftxt, "Barrier Id: %d cloned to %d.\n", s->id, new_s->id);
+                       fprintf(ftxt, "\t%d l (clone do %d l)\n", new_s->id, s->id);
                        list_insert_back(all_barriers, new_s);
-                       // NOT decrementing initial_barrier_count allows us to stop before new items
-                       // New items are at indices >= original count.
+                       // Not counting new barrier for this bomb pass
                    }
                }
                k++;
