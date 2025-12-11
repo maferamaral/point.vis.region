@@ -175,7 +175,7 @@ LinkedList geo_obter_todas_barreiras(Geo geo) {
     return segmentos;
 }
 
-LinkedList geo_gerar_biombo(Geo geo, double margem) {
+LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba) {
     struct Geo_st *g = (struct Geo_st *)geo;
     LinkedList biombo = list_create();
 
@@ -183,15 +183,30 @@ LinkedList geo_gerar_biombo(Geo geo, double margem) {
     double max_x = -DBL_MAX, max_y = -DBL_MAX;
 
     if (list_is_empty(g->formas)) {
-        min_x = 0; min_y = 0; max_x = 1000; max_y = 1000;
+        min_x = centro_bomba.x; max_x = centro_bomba.x;
+        min_y = centro_bomba.y; max_y = centro_bomba.y;
     } else {
         geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
     }
 
-    min_x -= margem;
-    min_y -= margem;
-    max_x += margem;
-    max_y += margem;
+    if (centro_bomba.x < min_x) min_x = centro_bomba.x;
+    if (centro_bomba.x > max_x) max_x = centro_bomba.x;
+    if (centro_bomba.y < min_y) min_y = centro_bomba.y;
+    if (centro_bomba.y > max_y) max_y = centro_bomba.y;
+
+    double largura = max_x - min_x;
+    double altura = max_y - min_y;
+
+    double dx = largura * 0.10;
+    double dy = altura * 0.10;
+
+    if (dx < 10.0) dx = 10.0;
+    if (dy < 10.0) dy = 10.0;
+
+    min_x -= dx;
+    min_y -= dy;
+    max_x += dx;
+    max_y += dy;
 
     Ponto p1 = ponto_criar(min_x, min_y);
     Ponto p2 = ponto_criar(max_x, min_y);

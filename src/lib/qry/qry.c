@@ -229,7 +229,8 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
             Ponto bomba = {x, y};
 
             LinkedList barreiras = geo_obter_todas_barreiras(cidade);
-            LinkedList biombo = geo_gerar_biombo(cidade, 1000.0);
+            LinkedList biombo = geo_gerar_biombo(cidade, bomba);
+
             while(!list_is_empty(biombo)) {
                 list_insert_back(barreiras, list_remove_front(biombo));
             }
