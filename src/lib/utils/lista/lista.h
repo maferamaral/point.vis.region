@@ -37,4 +37,7 @@ void list_destroy(LinkedList list);
 // Acesso by index (0 = primeiro elemento)
 void *list_get_at(LinkedList list, int index);
 
+// Remove elemento em indice especifico
+void *list_remove_at(LinkedList list, int index);
+
 #endif // LISTA_H

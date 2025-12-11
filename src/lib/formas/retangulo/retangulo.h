@@ -90,4 +90,7 @@ const char *retangulo_get_cor_borda(Retangulo retangulo);
 const char *rectangle_get_fill_color(Rectangle rectangle);
 const char *retangulo_get_cor_preenchimento(Retangulo retangulo);
 
+void retangulo_set_cor_borda(Retangulo retangulo, const char *cor);
+void retangulo_set_cor_preenchimento(Retangulo retangulo, const char *cor);
+
 #endif // RETANGULO_H

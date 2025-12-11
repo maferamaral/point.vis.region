@@ -85,4 +85,7 @@ const char *text_get_text(Text text);
  */
 int text_get_length(Text text);
 
+void text_set_border_color(Text text, const char *color);
+void text_set_fill_color(Text text, const char *color);
+
 #endif // TEXT_H

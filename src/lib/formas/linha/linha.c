@@ -97,3 +97,11 @@ const char *line_get_color(void *line)
         return NULL;
     return ((struct Line *)line)->color;
 }
+
+void line_set_color(void *line, const char *color)
+{
+    if (!line || !color) return;
+    struct Line *l = (struct Line *)line;
+    if (l->color) free(l->color);
+    l->color = duplicate_string(color);
+}

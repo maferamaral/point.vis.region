@@ -133,3 +133,19 @@ int text_get_length(void *text)
         return 0;
     return (int)strlen(t->text);
 }
+
+void text_set_border_color(void *text, const char *color)
+{
+    if (!text || !color) return;
+    struct Text *t = (struct Text *)text;
+    if (t->border_color) free(t->border_color);
+    t->border_color = duplicate_string(color);
+}
+
+void text_set_fill_color(void *text, const char *color)
+{
+    if (!text || !color) return;
+    struct Text *t = (struct Text *)text;
+    if (t->fill_color) free(t->fill_color);
+    t->fill_color = duplicate_string(color);
+}

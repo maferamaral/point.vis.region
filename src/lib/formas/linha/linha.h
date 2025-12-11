@@ -69,4 +69,6 @@ double line_get_y2(Line line);
  */
 const char *line_get_color(Line line);
 
+void line_set_color(Line line, const char *color);
+
 #endif // LINE_H

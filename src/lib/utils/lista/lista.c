@@ -197,6 +197,38 @@ void *list_get_at(LinkedList list, int index)
     return curr->data;
 }
 
+void *list_remove_at(LinkedList list, int index)
+{
+    ListImpl impl = as_impl(list);
+    if (impl == NULL || index < 0 || index >= impl->size)
+    {
+        return NULL;
+    }
+
+    if (index == 0)
+    {
+        return list_remove_front(list);
+    }
+    if (index == impl->size - 1)
+    {
+        return list_remove_back(list);
+    }
+
+    Node *prev = impl->head;
+    for (int i = 0; i < index - 1; i++)
+    {
+        prev = prev->next;
+    }
+
+    Node *to_remove = prev->next;
+    void *value = to_remove->data;
+    prev->next = to_remove->next;
+
+    free(to_remove);
+    impl->size--;
+    return value;
+}
+
 void list_destroy(LinkedList list)
 {
     ListImpl impl = as_impl(list);

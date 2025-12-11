@@ -114,3 +114,19 @@ const char *retangulo_get_cor_preenchimento(void *retangulo)
         return NULL;
     return ((struct Retangulo *)retangulo)->fill_color;
 }
+
+void retangulo_set_cor_borda(void *retangulo, const char *cor)
+{
+    if (!retangulo || !cor) return;
+    struct Retangulo *r = (struct Retangulo *)retangulo;
+    if (r->border_color) free(r->border_color);
+    r->border_color = duplicate_string(cor);
+}
+
+void retangulo_set_cor_preenchimento(void *retangulo, const char *cor)
+{
+    if (!retangulo || !cor) return;
+    struct Retangulo *r = (struct Retangulo *)retangulo;
+    if (r->fill_color) free(r->fill_color);
+    r->fill_color = duplicate_string(cor);
+}

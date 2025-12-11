@@ -105,3 +105,19 @@ const char *circulo_get_cor_preenchimento(void *circulo)
         return NULL;
     return ((struct Circulo *)circulo)->fill_color;
 }
+
+void circulo_set_cor_borda(void *circulo, const char *cor)
+{
+    if (!circulo || !cor) return;
+    struct Circulo *c = (struct Circulo *)circulo;
+    if (c->border_color) free(c->border_color);
+    c->border_color = duplicate_string(cor);
+}
+
+void circulo_set_cor_preenchimento(void *circulo, const char *cor)
+{
+    if (!circulo || !cor) return;
+    struct Circulo *c = (struct Circulo *)circulo;
+    if (c->fill_color) free(c->fill_color);
+    c->fill_color = duplicate_string(cor);
+}

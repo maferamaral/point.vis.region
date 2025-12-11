@@ -71,4 +71,7 @@ const char *circulo_get_cor_borda(Circulo circulo);
  */
 const char *circulo_get_cor_preenchimento(Circulo circulo);
 
+void circulo_set_cor_borda(Circulo circulo, const char *cor);
+void circulo_set_cor_preenchimento(Circulo circulo, const char *cor);
+
 #endif // CIRCULO_H
