@@ -1,17 +1,17 @@
-#ifndef QRY_HANDLER_H
-#define QRY_HANDLER_H
+#ifndef QRY_H
+#define QRY_H
 
 #include "../geo/geo.h"
 
 /**
- * Processa um arquivo de consultas (.qry) e executa operações sobre as formas geométricas.
- * Gera arquivos de saída (texto e SVG) com os resultados.
- *
- * @param cidade A estrutura Geo com todas as formas cadastradas
- * @param qryPath Caminho do arquivo de consultas (.qry)
- * @param outPath Caminho base para arquivos de saída (sem extensão)
- * @param geoName Nome do arquivo .geo (para referência em logs)
+ * Processa um arquivo .qry aplicando comandos sobre a cidade.
+ * Gera arquivos .svg e .txt com os resultados.
+ * 
+ * @param cidade Estrutura Geo contendo as formas da cidade
+ * @param qryPath Caminho para o arquivo .qry
+ * @param outPath Caminho base para os arquivos de saída (sem extensão)
+ * @param geoName Nome do arquivo .geo (para referência nos outputs)
  */
 void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const char *geoName);
 
-#endif // QRY_HANDLER_H
+#endif

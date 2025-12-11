@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,55 +20,56 @@ void extract_filename(const char *path, char *dest) {
     }
 }
 
+// Função auxiliar para juntar caminhos (path + filename)
+char *concat_path(const char *dir, const char *file) {
+    if (!dir) return strdup(file);
+    
+    size_t len = strlen(dir) + strlen(file) + 2;
+    char *full_path = malloc(len);
+    
+    // Verifica se o diretório termina com '/'
+    if (dir[strlen(dir) - 1] == '/') {
+        snprintf(full_path, len, "%s%s", dir, file);
+    } else {
+        snprintf(full_path, len, "%s/%s", dir, file);
+    }
+    return full_path;
+}
+
+// Função auxiliar para obter valor de argumento
+const char *get_arg_value(int argc, char *argv[], const char *flag) {
+    for (int i = 1; i < argc - 1; i++) {
+        if (strcmp(argv[i], flag) == 0) {
+            return argv[i + 1];
+        }
+    }
+    return NULL;
+}
+
 int main(int argc, char *argv[])
 {
-    char *inputs_idx = NULL;
-    char *output_dir = NULL;
-    char *query_file = NULL;
+    // Pegar argumentos
+    const char *base_path = get_arg_value(argc, argv, "-e");
+    const char *geo_name = get_arg_value(argc, argv, "-f");
+    const char *output_dir = get_arg_value(argc, argv, "-o");
+    const char *query_file = get_arg_value(argc, argv, "-q");
 
-    int insertion_limit = 10;
-    char sort_type = 'q';
-
-    for (int i = 1; i < argc; i++)
-    {
-        if (strcmp(argv[i], "-f") == 0 && i + 1 < argc)
-        {
-            inputs_idx = argv[++i];
-        }
-        else if (strcmp(argv[i], "-o") == 0 && i + 1 < argc)
-        {
-            output_dir = argv[++i];
-        }
-        else if (strcmp(argv[i], "-q") == 0 && i + 1 < argc)
-        {
-            query_file = argv[++i];
-        }
-        else if (strcmp(argv[i], "-to") == 0 && i + 1 < argc)
-        {
-            sort_type = argv[++i][0];
-        }
-        else if (strcmp(argv[i], "-in") == 0 && i + 1 < argc)
-        {
-            insertion_limit = atoi(argv[++i]);
-        }
-    }
-
-    if (!inputs_idx || !output_dir)
-    {
-        printf("Uso: %s -f <arquivo.geo> -o <diretorio_saida> [-q <arquivo.qry>] [-to <sort_type>] [-in <threshold>]\n", argv[0]);
+    // Verificar argumentos obrigatórios
+    if (!geo_name || !output_dir) {
+        printf("Uso: %s [-e <base_path>] -f <arquivo.geo> -o <diretorio_saida> [-q <arquivo.qry>]\n", argv[0]);
         return 1;
     }
-    
-    // Configure sort globally
-    visibilidade_set_sort_params(sort_type, insertion_limit);
 
+    // Concatenar caminho base com arquivo .geo
+    char *full_geo_path = concat_path(base_path, geo_name);
+    
     // 1. Criar e ler Geo
     Geo geo = geo_criar();
-    geo_ler(geo, inputs_idx);
+    geo_ler(geo, full_geo_path);
 
     // 2. Preparar arquivo de saída SVG
     char filename[256];
-    extract_filename(inputs_idx, filename);
+    extract_filename(geo_name, filename);
     
     char svg_path[1024];
     snprintf(svg_path, sizeof(svg_path), "%s/%s.svg", output_dir, filename);
@@ -76,6 +78,7 @@ int main(int argc, char *argv[])
     if (!svg_file) {
         printf("Erro ao criar arquivo SVG: %s\n", svg_path);
         geo_destruir(geo);
+        free(full_geo_path);
         return 1;
     }
 
@@ -89,6 +92,8 @@ int main(int argc, char *argv[])
 
     // 4. Processar Consultas (.qry) se fornecido
     if (query_file) {
+        char *full_qry_path = concat_path(base_path, query_file);
+        
         char qryName[256];
         extract_filename(query_file, qryName);
 
@@ -96,10 +101,13 @@ int main(int argc, char *argv[])
         // Formato base: saida/nomegeo-nomeqry
         snprintf(outPath, sizeof(outPath), "%s/%s-%s", output_dir, filename, qryName);
 
-        qry_processar(geo, query_file, outPath, filename);
+        qry_processar(geo, full_qry_path, outPath, filename);
+        
+        free(full_qry_path);
     }
     
     // 5. Limpeza
+    free(full_geo_path);
     geo_destruir(geo);
 
     return 0;

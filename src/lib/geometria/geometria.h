@@ -7,7 +7,7 @@
 // Definição de tolerância para comparações de float
 #define EPSILON 1e-9
 
-typedef
+typedef struct
 {
     double x;
     double y;

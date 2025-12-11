@@ -14,9 +14,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Helper to write SVG header
+// Helper to write SVG header with viewBox
 static void start_svg(FILE *f) {
-    if (f) fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\">\n");
+    if (f) fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-100 -100 1200 1200\">\n");
 }
 
 // Helper to write SVG footer

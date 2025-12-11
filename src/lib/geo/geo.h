@@ -13,7 +13,7 @@
 typedef void *Geo;
 
 // Elemento armazenado na lista de formas: expõe tipo e ponteiro genérico
-typedef
+typedef struct
 {
     TipoForma tipo;
     void *forma;

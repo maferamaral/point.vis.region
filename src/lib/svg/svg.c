@@ -1,23 +1,21 @@
 #include "svg.h"
 #include "../poligono/poligono.h"
 #include <stdio.h>
-#include "../utils/lista/lista.h"
 
-void svg_desenhar_poligono(FILE *svg, PoligonoVisibilidade poly, const char *color, double opacity)
-{
-    if (!svg || !poly)
-        return;
-
-    LinkedList vertices = poligono_get_vertices(poly);
+void svg_desenhar_poligono(FILE *f, PoligonoVisibilidade pol, const char *cor, double opacidade) {
+    if (!f || !pol) return;
+    
+    LinkedList vertices = poligono_get_vertices(pol);
     int n = list_size(vertices);
-    if (n == 0)
-        return;
-
-    fprintf(svg, "<polygon points=\"");
-    for (int i = 0; i < n; i++)
-    {
+    
+    if (n < 3) return; // Polígono precisa de pelo menos 3 vértices
+    
+    fprintf(f, "<polygon points=\"");
+    
+    for (int i = 0; i < n; i++) {
         Ponto *p = (Ponto *)list_get_at(vertices, i);
-        fprintf(svg, "%.2f,%.2f ", p->x, p->y);
+        fprintf(f, "%.2f,%.2f ", p->x, p->y);
     }
-    fprintf(svg, "\" style=\"fill:%s;fill-opacity:%.2f;stroke:%s;stroke-width:1\" />\n", color, opacity, color);
+    
+    fprintf(f, "\" fill=\"%s\" fill-opacity=\"%.2f\" stroke=\"none\" />\n", cor, opacidade);
 }
