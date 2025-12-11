@@ -2,13 +2,13 @@
 #define GEO_HANDLER_H
 
 #include <stdio.h>
-#include "../utils/lista/lista.h"   // Sua lista genérica
-#include "../geometria/geometria.h" // O TAD de matemática criado anteriormente
+#include "../utils/lista/lista.h"
+#include "../geometria/geometria.h"
 
 typedef void *Geo;
 
 /**
- * Inicializa a "Cidade" / Banco de Dados Geográfico
+ * Cria a estrutura de dados para armazenar a cidade.
  */
 Geo geo_criar();
 
@@ -20,20 +20,30 @@ Geo geo_criar();
 void geo_ler(Geo geo, const char *path);
 
 /**
- * Retorna a lista de todas as formas armazenadas (para desenhar o SVG final, por exemplo).
+ * Escreve todas as formas da cidade em formato SVG no arquivo fornecido.
+ * O arquivo já deve estar aberto e com o cabeçalho SVG escrito.
+ * @param geo A cidade
+ * @param svg Ponteiro para o arquivo .svg aberto
+ */
+void geo_escrever_svg(Geo geo, FILE *svg);
+
+/**
+ * Retorna a lista genérica de formas (para manipulações gerais).
  */
 LinkedList geo_get_formas(Geo geo);
 
 /**
- * [NOVO] Converte as barreiras da cidade (Retângulos, Linhas) em uma lista de Segmentos.
- * Essencial para o algoritmo de visibilidade.
+ * [IMPORTANTE PARA VISIBILIDADE]
+ * Converte as barreiras da cidade (paredes de Retângulos e Linhas)
+ * em uma lista de Segmentos matemáticos.
  * * @param geo A cidade
- * @return Uma Lista contendo elementos do tipo 'Segmento' (struct da lib geometria)
+ * @return Uma LinkedList nova contendo elementos do tipo 'Segmento' (struct da lib geometria)
+ * Nota: Quem chamar esta função deve destruir a lista retornada depois.
  */
 LinkedList geo_obter_todas_barreiras(Geo geo);
 
 /**
- * Limpa a memória
+ * Libera toda a memória alocada pelo módulo Geo.
  */
 void geo_destruir(Geo geo);
 

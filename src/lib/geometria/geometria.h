@@ -3,54 +3,68 @@
 
 #include <stdbool.h>
 
-// Definição de Ponto (usado também como Vetor)
+// --- Estruturas Básicas ---
+
 typedef struct
 {
     double x;
     double y;
 } Ponto;
 
-// Definição de Segmento de Reta
 typedef struct
 {
-    Ponto p1; // Início
-    Ponto p2; // Fim
+    double x;
+    double y;
+} Vetor;
+
+typedef struct
+{
+    Ponto p1;
+    Ponto p2;
 } Segmento;
 
-// --- Construtores e Utilitários Básicos ---
+// --- Construtores ---
+
 Ponto ponto_criar(double x, double y);
 Segmento segmento_criar(Ponto p1, Ponto p2);
 
-// --- Operações Vetoriais ---
-// Retorna o quadrado da distância (evita raiz quadrada, mais rápido para comparações)
-double distancia_sq(Ponto a, Ponto b);
-// Retorna a distância euclidiana real
+// --- Cálculos Básicos ---
+
+// Retorna a distância euclidiana entre dois pontos
 double distancia(Ponto a, Ponto b);
 
-// Produto vetorial (Cross Product) entre vetores (b-a) e (c-a).
-// Retorno > 0: c está à esquerda de ab
-// Retorno < 0: c está à direita de ab
-// Retorno = 0: a, b, c são colineares
+// Retorna o quadrado da distância (mais rápido para comparações)
+double distancia_sq(Ponto a, Ponto b);
+
+// Produto Vetorial (Cross Product) de (b-a) e (c-a).
+// Retorna > 0 se c está à esquerda de ab
+// Retorna < 0 se c está à direita de ab
+// Retorna 0 se são colineares
 double produto_vetorial(Ponto a, Ponto b, Ponto c);
 
-// Retorna o ângulo polar de 'p' em relação ao 'centro' (em radianos, -PI a PI ou 0 a 2PI)
+// Retorna o ângulo polar do ponto p em relação ao centro (em radianos, de -PI a PI)
 double angulo_polar(Ponto centro, Ponto p);
 
-// --- Intersecções e Visibilidade ---
+// --- Intersecções ---
 
 // Verifica se dois segmentos se intersectam (retorna true/false)
 bool segmentos_intersectam(Segmento s1, Segmento s2);
 
-// Calcula o Ponto de intersecção entre duas retas definidas pelos segmentos.
-// Retorna um ponto com coordenadas NAN ou INFINITY se forem paralelas.
+// Calcula o ponto exato de intersecção entre duas retas definidas pelos segmentos.
+// Retorna um ponto com coordenadas NAN se forem paralelas.
 Ponto ponto_interseccao(Segmento s1, Segmento s2);
 
-// Calcula o ponto de intersecção entre um "raio" (linha da bomba até um ângulo) e um segmento.
-// Útil para determinar onde a "luz" bate na parede.
-// 'origem': centro da explosão
-// 'angulo': direção do raio
-// 'seg': barreira
-// Retorna o ponto de impacto.
+// Calcula o ponto onde um "raio" (saindo da origem com um certo ângulo) atinge um segmento.
+// Essencial para a árvore de segmentos ativos na varredura.
+// Se não intersectar, retorna um ponto com coordenadas NAN.
 Ponto interseccao_raio_segmento(Ponto origem, double angulo, Segmento seg);
+
+// Verifica se o ponto P está sobre o segmento S (assumindo colinearidade prévia)
+bool ponto_no_segmento(Ponto p, Segmento s);
+
+// Retorna o valor máximo entre dois doubles
+double max_d(double a, double b);
+// Retorna o valor mínimo entre dois doubles
+double min_d(double a, double b);
 
 #endif
