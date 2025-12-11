@@ -1,13 +1,13 @@
-#include "qry_handler.h"
+#include "qry.h"
 #include "../visibilidade/visibilidade.h"
-#include "../geo_handler/geo_handler.h"
+#include "../geo/geo.h"
 #include "../svg/svg.h"
 #include "../formas/formas.h"
 #include <stdlib.h>
 #include <string.h>
 
 // Função auxiliar para verificar se a forma está na área de explosão
-bool forma_atingida(void *forma, TipoForma tipo, PoligonoVisibilidade *pol)
+bool forma_atingida(void *forma, TipoForma tipo, PoligonoVisibilidade pol)
 {
     Ponto ancora;
     // Pega a âncora dependendo do tipo
@@ -68,7 +68,7 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
             Ponto bomba = {x, y};
 
             // 1. Calcula Visibilidade
-            PoligonoVisibilidade *pol = visibilidade_calcular(bomba, barreiras);
+            PoligonoVisibilidade pol = visibilidade_calcular(bomba, barreiras);
 
             // 2. Itera sobre todas as formas da cidade
             LinkedList formas = geo_get_formas(cidade);
@@ -101,7 +101,7 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
 
             // Desenha o polígono no SVG para debug/visualização
             svg_desenhar_poligono(fsvg, pol, "yellow", 0.3); // 0.3 opacidade
-            visibilidade_destruir(pol);
+            visibilidade_destruir_poly(pol);
         }
     }
 

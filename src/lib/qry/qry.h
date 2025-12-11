@@ -1,7 +1,7 @@
 #ifndef QRY_HANDLER_H
 #define QRY_HANDLER_H
 
-#include "../geo_handler/geo_handler.h"
+#include "../geo/geo.h"
 
 /**
  * Processa um arquivo de consultas (.qry) e executa operações sobre as formas geométricas.

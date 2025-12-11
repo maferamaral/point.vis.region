@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "geo_handler/geo_handler.h"
+#include "lib/geo/geo.h"
 
 // Função auxiliar para extrair o nome do arquivo sem extensão e caminho
 void extract_filename(const char *path, char *dest) {
