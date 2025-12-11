@@ -1,66 +1,44 @@
-Id: 86 Type: 2 transformed to barrier.
-Id: 96 (130.91,174.45) -> (155.67,199.19)
-Id: 83 Type: 2 transformed to barrier.
-Id: 97 (268.11,283.86) -> (292.87,308.60)
-Id: 94 Type: 3 transformed to barrier.
-Id: 98 (136.97,125.76) -> (246.97,125.76)
-Id: 91 Type: 3 transformed to barrier.
-Id: 99 (136.97,301.24) -> (246.97,301.24)
-Id: 84 Type: 2 transformed to barrier.
-Id: 100 (191.97,301.24) -> (216.73,325.98)
-Id: 89 Type: 3 transformed to barrier.
-Id: 101 (247.00,213.50) -> (357.00,213.50)
-Id: 75 Type: 0 transformed to barrier.
-Id: 102 (302.00,183.50) -> (302.00,243.50)
-Id: 93 Type: 3 transformed to barrier.
-Id: 103 (75.91,174.45) -> (185.91,174.45)
-Id: 85 Type: 2 transformed to barrier.
-Id: 104 (130.91,252.55) -> (155.67,277.29)
-Id: 82 Type: 2 transformed to barrier.
-Id: 105 (302.00,213.50) -> (326.76,238.24)
-Id: 76 Type: 0 transformed to barrier.
-Id: 106 (268.11,253.86) -> (268.11,313.86)
-Id: 88 Type: 2 transformed to barrier.
-Id: 107 (268.11,143.14) -> (292.87,167.87)
-Id: 92 Type: 3 transformed to barrier.
-Id: 108 (75.91,252.55) -> (185.91,252.55)
-Id: 78 Type: 0 transformed to barrier.
-Id: 109 (130.91,222.55) -> (130.91,282.55)
-Id: 79 Type: 0 transformed to barrier.
-Id: 110 (130.91,144.45) -> (130.91,204.45)
-Id: 95 Type: 3 transformed to barrier.
-Id: 111 (213.11,143.14) -> (323.11,143.14)
-Id: 81 Type: 0 transformed to barrier.
-Id: 112 (268.11,113.14) -> (268.11,173.14)
-Id: 87 Type: 2 transformed to barrier.
-Id: 113 (191.97,125.76) -> (216.73,150.50)
-Id: 77 Type: 0 transformed to barrier.
-Id: 114 (191.97,271.24) -> (191.97,331.24)
-Id: 80 Type: 0 transformed to barrier.
-Id: 115 (191.97,95.76) -> (191.97,155.76)
-Id: 90 Type: 3 transformed to barrier.
-Id: 116 (213.11,283.86) -> (323.11,283.86)
-Id: 44 cloned.
-Id: 26 cloned.
-Id: 35 cloned.
-Id: 86 cloned.
-Id: 38 cloned.
-Id: 83 cloned.
-Id: 84 cloned.
-Id: 6 cloned.
-Id: 53 cloned.
-Id: 85 cloned.
-Id: 82 cloned.
-Id: 25 cloned.
-Id: 46 cloned.
-Id: 88 cloned.
-Id: 9 cloned.
-Id: 37 cloned.
-Id: 47 cloned.
-Id: 43 cloned.
-Id: 54 cloned.
-Id: 7 cloned.
-Id: 87 cloned.
-Id: 41 cloned.
-Id: 48 cloned.
-Id: 29 cloned.
+[*] a
+	86 (l) -> 152 (anteparo)
+	83 (l) -> 153 (anteparo)
+	94 (t) -> 154 (anteparo)
+	91 (t) -> 155 (anteparo)
+	84 (l) -> 156 (anteparo)
+	89 (t) -> 157 (anteparo)
+	75 (c) -> 158 (anteparo)
+	93 (t) -> 159 (anteparo)
+	85 (l) -> 160 (anteparo)
+	82 (l) -> 161 (anteparo)
+	76 (c) -> 162 (anteparo)
+	88 (l) -> 163 (anteparo)
+	92 (t) -> 164 (anteparo)
+	78 (c) -> 165 (anteparo)
+	79 (c) -> 166 (anteparo)
+	95 (t) -> 167 (anteparo)
+	81 (c) -> 168 (anteparo)
+	87 (l) -> 169 (anteparo)
+	77 (c) -> 170 (anteparo)
+	80 (c) -> 171 (anteparo)
+	90 (t) -> 172 (anteparo)
+[*] cln x=200.00 y=200.00 dx=270.00 dy=270.00
+	173 l (clone do 105 l)
+	174 l (clone do 108 l)
+	175 l (clone do 110 l)
+	176 l (clone do 121 l)
+	177 l (clone do 123 l)
+	178 l (clone do 131 l)
+	179 l (clone do 150 l)
+	180 l (clone do 152 l)
+	181 l (clone do 153 l)
+	182 l (clone do 156 l)
+	183 l (clone do 157 l)
+	184 l (clone do 160 l)
+	185 l (clone do 161 l)
+	186 l (clone do 162 l)
+	187 l (clone do 163 l)
+	188 l (clone do 164 l)
+	189 l (clone do 165 l)
+	190 l (clone do 167 l)
+	191 l (clone do 169 l)
+	192 l (clone do 170 l)
+	193 l (clone do 172 l)

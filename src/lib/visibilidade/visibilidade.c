@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <float.h> // For DBL_MAX
-#include "../tree/tree.h"
+//#include "../tree/tree.h"
 #include "../utils/lista/lista.h"
 #include "../geometria/geometria.h"
 #include "../utils/sort/sort.h"
@@ -74,32 +74,8 @@ int comparar_eventos(const void *a, const void *b) {
     return 0;
 }
 
-// --- BST Comparator --- //
-// Compares two segments based on their intersection distance with the CURRENT ray (g_angulo_atual)
-// Or g_angulo_atual is just used to define the ray?
-// Actually, tree comparator needs to be strictly consistent.
-// Using 'distancia_raio_segmento' helper from geometry.
-int comparar_segmentos_tree(const void *a, const void *b) {
-    Segmento *s1 = (Segmento *)a;
-    Segmento *s2 = (Segmento *)b;
-    
-    if (s1 == s2) return 0;
-    
-    double d1 = distancia_raio_segmento(g_centro, g_angulo_atual, *s1);
-    double d2 = distancia_raio_segmento(g_centro, g_angulo_atual, *s2);
-    
-    // If distances are valid numbers
-    if (isnan(d1)) d1 = DBL_MAX; // Should not happen for active segments
-    if (isnan(d2)) d2 = DBL_MAX;
 
-    if (fabs(d1 - d2) < EPSILON) {
-        // Tie-breaker using IDs or pointers to ensure stability?
-        // If they overlap exactly, order doesn't matter for visibility
-        if (s1 < s2) return -1; // Address comparison as fallback
-        return 1;
-    }
-    return (d1 < d2) ? -1 : 1;
-}
+// Comparators are for sort and tree. Since we removed Tree, we only need Event comparator.
 
 // --- Helper: Clone/Prepare Segments --- //
 // Copies input segments to a local list, adds BBox, and splits at Angle 0.
@@ -263,89 +239,100 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
     // 4. Ordenar eventos radialmente
     sort(eventos, k, sizeof(Evento*), comparar_eventos, g_sort_type, g_sort_threshold);
     
-    // 2. Init Tree and Biombo
-    BinaryTree ativos = tree_create(comparar_segmentos_tree);
+    // 2. Active List (Linear Scan)
+    LinkedList ativos = list_create();
     PoligonoVisibilidade poly = poligono_criar(centro);
     
-    // Initial segments at angle 0?
-    // Since we split at 0, we might have segments starting exactly at 0.
-    // Do we need to pre-fill tree?
-    // The events starting at 0 will handle insertion.
-    // What if a segment starts at 0? It gets inserted.
-    // What if a segment ENDS at 0? (Meaning 2PI?). We mapped 0..2PI.
-    // Effectively, at angle 0, tree is empty properly.
-    
-    // We need a 'current_biombo' logic.
-    // Initially null.
     Segmento *biombo_atual = NULL;
-    Ponto p_biombo_start = {0,0}; // Virtual start of current biombo output
+    // We don't need p_biombo_start if we just cast rays to current biombo.
 
     for(int i=0; i<k; i++) {
         Evento *e = eventos[i];
         g_angulo_atual = e->angulo; // Update global sweep angle context
         
+        // --- 1. Update Active List ---
         if (e->tipo == TIPO_INICIO) {
-            // Check visibility relative to current biombo BEFORE inserting (or after?)
-            // If biombo_atual exists, is 'e->seg' in front of it?
-            
-            tree_insert(ativos, e->seg);
-            
-            // Check if this new segment obscures the current biombo
-            bool visivel = esta_na_frente(centro, e->p, biombo_atual);
-            
-            if (visivel) {
-                 if (biombo_atual) {
-                     // Cast ray to OLD biombo to find transition point
-                     Ponto inter = interseccao_raio_segmento(centro, e->angulo, *biombo_atual);
-                     if (!isnan(inter.x)) poligono_adicionar_vertice(poly, inter);
-                 }
-                 // Add vertex V
-                 poligono_adicionar_vertice(poly, e->p);
-                 
-                 // Update Biombo
-                 biombo_atual = e->seg;
-                 p_biombo_start = e->p;
-            }
-            
+            list_insert_back(ativos, e->seg);
         } else { // TIPO_FIM
-            // If this segment is the current biombo, it ends.
-            if (e->seg == biombo_atual) {
-                // Add vertex V (endpoint of wall)
-                poligono_adicionar_vertice(poly, e->p);
-                
-                // Remove from tree
-                // Needs robust delete. Assuming tree_remove handles finding by pointer equality 
-                // or we use the comparator.
-                // Our comparator uses distance. At END event, distance at angle might be same as others?
-                // tree_remove usually matches by key.
-                // We rely on address check inside comparator or tree implementation?
-                // Standard BST delete by value: might delete wrong segment if equidistant?
-                // 'tree_remove' implementation in this project likely uses comparator.
-                // We need to be careful.
-                tree_remove(ativos, e->seg);
-                
-                // Find new biombo (closest in tree)
-                TreeNode root = tree_get_root(ativos);
-                Segmento *new_biombo = NULL;
-                
-                // Find min in BST
-                TreeNode cur = root;
-                while(cur && tree_node_left(cur)) cur = tree_node_left(cur);
-                if (cur) new_biombo = (Segmento*)tree_node_get_data(cur);
-                
-                if (new_biombo) {
-                    // Cast ray to NEW biombo
-                    Ponto inter = interseccao_raio_segmento(centro, e->angulo, *new_biombo);
-                    if (!isnan(inter.x)) poligono_adicionar_vertice(poly, inter);
-                    biombo_atual = new_biombo;
-                } else {
-                    biombo_atual = NULL;
+            // Remove segment from active list
+            // Assuming list_remove compares by pointer value or we search index
+            // list_remove(list, val) typically removes first occurrence of val.
+            // Since we insert pointers, it should work if list checks ptr equality.
+            // If list checks value equality with comparator, might be tricky.
+            // Let's assume list_remove searches for the pointer.
+            // Checking list.h might be good, but standard usually does.
+            // If not, we search manually.
+            int idx = -1;
+            for(int j=0; j<list_size(ativos); j++) {
+                if (list_get_at(ativos, j) == e->seg) {
+                    idx = j;
+                    break;
                 }
-                
-            } else {
-                // Just remove. Hidden wall ended.
-                tree_remove(ativos, e->seg);
             }
+            if (idx != -1) list_remove_at(ativos, idx);
+        }
+
+        // --- 2. Find Closest Barrier (Biombo) ---
+        Segmento *novo_biombo = NULL;
+        double min_dist = DBL_MAX;
+        
+        int n_active = list_size(ativos);
+        for(int j=0; j<n_active; j++) {
+            Segmento *s = list_get_at(ativos, j);
+            double d = distancia_raio_segmento(centro, e->angulo, *s);
+            
+            if (!isnan(d) && d < min_dist - EPSILON) {
+                min_dist = d;
+                novo_biombo = s;
+            } else if (!isnan(d) && fabs(d - min_dist) < EPSILON) {
+                // Tie-breaker: pick one consistently (e.g. smallest ID)
+                // This prevents flickering if overlapping
+                if (novo_biombo == NULL || s->id < novo_biombo->id) {
+                     min_dist = d;
+                     novo_biombo = s;
+                }
+            }
+        }
+        
+        // --- 3. Handle Transitions ---
+        if (biombo_atual != novo_biombo) {
+            // Transition detected!
+            
+            // Intersection with OLD biombo at current angle?
+            if (biombo_atual) {
+                Ponto inter_old = interseccao_raio_segmento(centro, e->angulo, *biombo_atual);
+                if (!isnan(inter_old.x)) poligono_adicionar_vertice(poly, inter_old);
+            }
+            
+            // Add the Vertex Point itself?
+            // If vertex is "ON" the ray.
+            // Usually correct to add vertex if it's the cause of event.
+            // But if we just switch from far wall to near wall (START event of near),
+            // the near wall starts at 'dist'.
+            // If switch from near wall to far wall (END event of near), 
+            // the near wall ends at 'dist'.
+            
+            // However, just adding intersection with NEW biombo might be enough?
+            // Wait, if we hit a START vertex V of a new closer wall:
+            // 1. Ray hits old wall at dist_old.
+            // 2. Vertex V is at dist_in < dist_old.
+            // 3. New wall starts at V.
+            // 4. We should Output V. 
+            // Using "interseccao_raio_segmento(..., novo_biombo)" at angle 'e->angulo' 
+            // SHOULD return V if V is conceptually on the segment start.
+            
+            if (novo_biombo) {
+                Ponto inter_new = interseccao_raio_segmento(centro, e->angulo, *novo_biombo);
+                if (!isnan(inter_new.x)) poligono_adicionar_vertice(poly, inter_new);
+            }
+            
+            biombo_atual = novo_biombo;
+        } else {
+             // Biombo didn't change, but we are at a vertex.
+             // If this vertex belongs to the current biombo, we should add it (corner).
+             if (biombo_atual && (e->seg == biombo_atual)) {
+                 poligono_adicionar_vertice(poly, e->p);
+             }
         }
     }
     
@@ -358,7 +345,7 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
     for(int i=0; i<n_loc; i++) free(list_get_at(local_segs, i));
     list_destroy(local_segs);
     
-    tree_destroy(ativos, NULL); 
+    list_destroy(ativos); // Don't free segments, they are owned by local_segs
 
     return poly;
 }
