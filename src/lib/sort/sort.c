@@ -14,40 +14,29 @@ static void swap(void *a, void *b, size_t size) {
 void insertion_sort(void *base, size_t nitems, size_t size, int (*compar)(const void *, const void *)) {
     char *arr = (char *)base;
     for (size_t i = 1; i < nitems; i++) {
-        // Elemento a ser "inserido" na parte ordenada
-        // Mas como insertion sort padrão faz swaps sucessivos ou shifts
-        // Vamos fazer a versão swap para facilitar com memória genérica (menos alocação)
-        // Ou melhor, shift é mais eficiente. Vamos fazer shift.
-        
-        // Salva elemento atual em temp
         char temp[size];
         memcpy(temp, arr + i * size, size);
         
         int j = (int)i - 1;
         
-        // Enquanto o elemento em j for maior que temp, move para frente
         while (j >= 0 && compar(arr + j * size, temp) > 0) {
             memcpy(arr + (j + 1) * size, arr + j * size, size);
             j--;
         }
         
-        // Insere na posição correta
         memcpy(arr + (j + 1) * size, temp, size);
     }
 }
 
 // ==== Merge Sort ====
 
-// Função auxiliar para o merge
 static void merge(char *base, size_t size, int left, int mid, int right, int (*compar)(const void *, const void *)) {
     int n1 = mid - left + 1;
     int n2 = right - mid;
 
-    // Arrays temporários
     char *L = malloc(n1 * size);
     char *R = malloc(n2 * size);
 
-    // Copia dados para arrays temporários
     memcpy(L, base + left * size, n1 * size);
     memcpy(R, base + (mid + 1) * size, n2 * size);
 
@@ -55,7 +44,6 @@ static void merge(char *base, size_t size, int left, int mid, int right, int (*c
     int j = 0;
     int k = left;
 
-    // Merge dos arrays temporários de volta para base
     while (i < n1 && j < n2) {
         if (compar(L + i * size, R + j * size) <= 0) {
             memcpy(base + k * size, L + i * size, size);
@@ -67,14 +55,12 @@ static void merge(char *base, size_t size, int left, int mid, int right, int (*c
         k++;
     }
 
-    // Copia elementos restantes de L, se houver
     while (i < n1) {
         memcpy(base + k * size, L + i * size, size);
         i++;
         k++;
     }
 
-    // Copia elementos restantes de R, se houver
     while (j < n2) {
         memcpy(base + k * size, R + j * size, size);
         j++;
@@ -99,4 +85,20 @@ static void merge_sort_recursive(char *base, size_t size, int left, int right, i
 void merge_sort(void *base, size_t nitems, size_t size, int (*compar)(const void *, const void *)) {
     if (nitems < 2) return;
     merge_sort_recursive((char *)base, size, 0, (int)nitems - 1, compar);
+}
+
+// ==== Generic Sort Wrapper ====
+void sort(void *base, size_t nitems, size_t size, int (*compar)(const void *, const void *), char method, int threshold) {
+    switch (method) {
+        case 'm':
+            merge_sort(base, nitems, size, compar);
+            break;
+        case 'i':
+            insertion_sort(base, nitems, size, compar);
+            break;
+        case 'q':
+        default:
+            qsort(base, nitems, size, compar);
+            break;
+    }
 }
