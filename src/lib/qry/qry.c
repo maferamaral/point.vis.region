@@ -1,4 +1,4 @@
-#include "../../include/qry.h"
+#include "qry.h"
 #include "../visibilidade/visibilidade.h"
 #include "../geo/geo.h"
 #include "../svg/svg.h"

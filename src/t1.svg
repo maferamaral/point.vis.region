@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+<rect x="100.00" y="100.00" width="200.00" height="100.00" stroke="black" fill="blue" stroke-width="1" opacity="0.6" />
+<circle cx="400.00" cy="150.00" r="50.00" stroke="red" fill="yellow" stroke-width="1" opacity="0.6" />
+<line x1="500.00" y1="500.00" x2="600.00" y2="600.00" stroke="green" stroke-width="1" opacity="0.6" />
+</svg>

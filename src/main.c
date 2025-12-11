@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "lib/geo/geo.h"
-#include "include/qry.h"
+#include "lib/qry/qry.h"
 #include "lib/visibilidade/visibilidade.h"
 
 // Função auxiliar para extrair o nome do arquivo sem extensão e caminho
