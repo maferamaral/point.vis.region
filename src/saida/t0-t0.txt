@@ -1,0 +1,3 @@
+Id: 12 Type: 1 transformed to barrier.
+Id: 8 destroyed.
+Id: 11 destroyed.

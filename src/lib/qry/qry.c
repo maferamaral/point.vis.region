@@ -96,7 +96,8 @@ static void clone_generic(LinkedList formas, void *forma, TipoForma tipo, double
 }
 
 // Helper to create segments based on form type and rule
-static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barriers, char orientation) {
+// Helper to create segments based on form type and rule
+static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barriers, char orientation, int *id_counter, FILE *ftxt) {
     if (tipo == RECTANGLE) {
         double x = retangulo_get_x(forma);
         double y = retangulo_get_y(forma);
@@ -108,18 +109,28 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         Ponto p3 = {x + w, y + h};
         Ponto p4 = {x, y + h};
         
-        Segmento *s;
-        s = malloc(sizeof(Segmento)); s->p1 = p1; s->p2 = p2; list_insert_back(barriers, s);
-        s = malloc(sizeof(Segmento)); s->p1 = p2; s->p2 = p3; list_insert_back(barriers, s);
-        s = malloc(sizeof(Segmento)); s->p1 = p3; s->p2 = p4; list_insert_back(barriers, s);
-        s = malloc(sizeof(Segmento)); s->p1 = p4; s->p2 = p1; list_insert_back(barriers, s);
+        Ponto pts[] = {p1, p2, p3, p4};
+        Ponto next_pts[] = {p2, p3, p4, p1};
+
+        for (int k = 0; k < 4; k++) {
+            Segmento *s = malloc(sizeof(Segmento));
+            s->p1 = pts[k];
+            s->p2 = next_pts[k];
+            s->id = (*id_counter)++;
+            list_insert_back(barriers, s);
+            fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+        }
+
     } else if (tipo == LINE) {
         Segmento *s = malloc(sizeof(Segmento));
         s->p1.x = line_get_x1(forma);
         s->p1.y = line_get_y1(forma);
         s->p2.x = line_get_x2(forma);
         s->p2.y = line_get_y2(forma);
+        s->id = (*id_counter)++;
         list_insert_back(barriers, s);
+        fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+
     } else if (tipo == CIRCLE) {
         double cx = circulo_get_x(forma);
         double cy = circulo_get_y(forma);
@@ -136,12 +147,17 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         
         Segmento *s = malloc(sizeof(Segmento));
         s->p1 = p1; s->p2 = p2;
+        s->id = (*id_counter)++;
         list_insert_back(barriers, s);
+        fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+
     } else if (tipo == TEXT) {
         double xt = text_get_x(forma);
         double yt = text_get_y(forma);
         char anchor = text_get_anchor(forma);
-        int len = text_get_length(forma);
+        // Assuming text_get_text exists or similar
+        const char *txt = text_get_text(forma);
+        int len = strlen(txt);
         double width = 10.0 * len;
         
         Ponto p1 = {0, yt};
@@ -163,7 +179,9 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         
         Segmento *s = malloc(sizeof(Segmento));
         s->p1 = p1; s->p2 = p2;
+        s->id = (*id_counter)++;
         list_insert_back(barriers, s);
+        fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
     }
 }
 
@@ -203,6 +221,10 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
     // Maintain list of PoligonoVisibilidade for sfx="-"
     LinkedList final_polys = list_create();
 
+    // Initialize ID counter for new segments
+    LinkedList formas = geo_get_formas(cidade);
+    int seg_id_counter = get_max_id(formas) + 1;
+
     char line[1024];
     while (fgets(line, sizeof(line), fqry)) {
         char cmd[32];
@@ -212,7 +234,10 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
             int i, j;
             char opt = 'h'; 
             // a i j [opt]
-            char *token = strtok(line, " \n"); // cmd
+            char buffCopy[1024];
+            strcpy(buffCopy, line);
+            
+            char *token = strtok(buffCopy, " \n"); // cmd
             char *si = strtok(NULL, " \n");
             char *sj = strtok(NULL, " \n");
             char *so = strtok(NULL, " \n");
@@ -222,7 +247,6 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                 j = atoi(sj);
                 if (so) opt = so[0];
             
-                LinkedList formas = geo_get_formas(cidade);
                 // remove_at is destructive, so iteration needs care.
                 int k = 0;
                 while (k < list_size(formas)) {
@@ -230,14 +254,19 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                     int id = get_id_generico(el->forma, el->tipo);
                     
                     if (id >= i && id <= j) {
-                        add_barriers_from_form(el->forma, el->tipo, all_barriers, opt);
                         fprintf(ftxt, "Id: %d Type: %d transformed to barrier.\n", id, el->tipo);
+                        add_barriers_from_form(el->forma, el->tipo, all_barriers, opt, &seg_id_counter, ftxt);
                         
-                        // Remove from Geo
-                        ElementoGeo *removed = (ElementoGeo *)list_remove_at(formas, k);
-                        // TODO: destructor for shape? skipping for now as 'geo' might own strict memory mgmt
-                        free(removed);
-                        // k stays same
+                        if (el->tipo != LINE) {
+                            // Remove from Geo
+                            ElementoGeo *removed = (ElementoGeo *)list_remove_at(formas, k);
+                            // TODO: destructor for shape? skipping for now as 'geo' might own strict memory mgmt
+                            free(removed);
+                            // k stays same
+                        } else {
+                            // Line stays
+                            k++;
+                        }
                     } else {
                         k++;
                     }

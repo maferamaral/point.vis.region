@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "lib/geo/geo.h"
+#include "include/qry.h"
 
 // Função auxiliar para extrair o nome do arquivo sem extensão e caminho
 void extract_filename(const char *path, char *dest) {
@@ -65,17 +66,26 @@ int main(int argc, char *argv[])
 
     // 3. Escrever SVG
     fprintf(svg_file, "<svg xmlns=\"http://www.w3.org/2000/svg\">\n");
-    // Opcional: definir viewBox se soubermos os limites, mas por enquanto livre.
-    
     geo_escrever_svg(geo, svg_file);
-    
     fprintf(svg_file, "</svg>\n");
     fclose(svg_file);
 
-    // 4. Limpeza
-    geo_destruir(geo);
-
     printf("SVG gerado com sucesso em: %s\n", svg_path);
+
+    // 4. Processar Consultas (.qry) se fornecido
+    if (query_file) {
+        char qryName[256];
+        extract_filename(query_file, qryName);
+
+        char outPath[512];
+        // Formato base: saida/nomegeo-nomeqry
+        sprintf(outPath, "%s/%s-%s", output_dir, filename, qryName);
+
+        qry_processar(geo, query_file, outPath, filename);
+    }
+    
+    // 5. Limpeza
+    geo_destruir(geo);
 
     return 0;
 }
