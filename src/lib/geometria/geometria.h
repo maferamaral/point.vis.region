@@ -7,17 +7,18 @@
 // Definição de tolerância para comparações de float
 #define EPSILON 1e-9
 
-typedef struct
+typedef
 {
     double x;
     double y;
-} Ponto;
+}
+Ponto;
 
 typedef struct
 {
     Ponto p1;
     Ponto p2;
-    int id; // Opcional, útil para debug
+    int id;       // Opcional, útil para debug
     char cor[32]; // Added for visibility/painting
 } Segmento;
 

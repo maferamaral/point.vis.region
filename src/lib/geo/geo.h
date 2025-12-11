@@ -13,11 +13,12 @@
 typedef void *Geo;
 
 // Elemento armazenado na lista de formas: expõe tipo e ponteiro genérico
-typedef struct
+typedef
 {
     TipoForma tipo;
     void *forma;
-} ElementoGeo;
+}
+ElementoGeo;
 
 // Acesso genérico ao id de uma forma, usado por módulos que iteram a lista de formas
 int get_id_generico(void *forma, TipoForma tipo);
