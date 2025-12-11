@@ -6,10 +6,20 @@
 #include "../tree/tree.h"
 #include "../utils/lista/lista.h"
 #include "../geometria/geometria.h"
+#include "../utils/sort/sort.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+// Global Sort Params
+static char g_sort_type = 'q';
+static int g_sort_threshold = 10;
+
+void visibilidade_set_sort_params(char type, int threshold) {
+    g_sort_type = type;
+    g_sort_threshold = threshold;
+}
 
 // --- Constants & Globals --- //
 
@@ -250,8 +260,8 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
         eventos[k]->p = p_end;
         k++;
     }
-    
-    qsort(eventos, k, sizeof(Evento*), comparar_eventos);
+    // 4. Ordenar eventos radialmente
+    sort(eventos, k, sizeof(Evento*), comparar_eventos, g_sort_type, g_sort_threshold);
     
     // 2. Init Tree and Biombo
     BinaryTree ativos = tree_create(comparar_segmentos_tree);

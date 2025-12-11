@@ -19,4 +19,11 @@ bool visibilidade_ponto_atingido(PoligonoVisibilidade pol, Ponto p);
 
 void visibilidade_destruir_poly(PoligonoVisibilidade pol);
 
+/**
+ * Configure sort parameters for visibility algorithm.
+ * @param type 'q' or 'm'
+ * @param threshold Limit for insertion sort optimization
+ */
+void visibilidade_set_sort_params(char type, int threshold);
+
 #endif

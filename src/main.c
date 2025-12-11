@@ -3,6 +3,7 @@
 #include <string.h>
 #include "lib/geo/geo.h"
 #include "include/qry.h"
+#include "lib/visibilidade/visibilidade.h"
 
 // Função auxiliar para extrair o nome do arquivo sem extensão e caminho
 void extract_filename(const char *path, char *dest) {
@@ -24,6 +25,9 @@ int main(int argc, char *argv[])
     char *output_dir = NULL;
     char *query_file = NULL;
 
+    int insertion_limit = 10;
+    char sort_type = 'q';
+
     for (int i = 1; i < argc; i++)
     {
         if (strcmp(argv[i], "-f") == 0 && i + 1 < argc)
@@ -38,13 +42,24 @@ int main(int argc, char *argv[])
         {
             query_file = argv[++i];
         }
+        else if (strcmp(argv[i], "-to") == 0 && i + 1 < argc)
+        {
+            sort_type = argv[++i][0];
+        }
+        else if (strcmp(argv[i], "-in") == 0 && i + 1 < argc)
+        {
+            insertion_limit = atoi(argv[++i]);
+        }
     }
 
     if (!inputs_idx || !output_dir)
     {
-        printf("Uso: %s -f <arquivo.geo> -o <diretorio_saida> [-q <arquivo.qry>]\n", argv[0]);
+        printf("Uso: %s -f <arquivo.geo> -o <diretorio_saida> [-q <arquivo.qry>] [-to <sort_type>] [-in <threshold>]\n", argv[0]);
         return 1;
     }
+    
+    // Configure sort globally
+    visibilidade_set_sort_params(sort_type, insertion_limit);
 
     // 1. Criar e ler Geo
     Geo geo = geo_criar();
