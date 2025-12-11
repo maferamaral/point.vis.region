@@ -130,14 +130,14 @@ void geo_escrever_svg(Geo geo, FILE *svg)
         if (el->tipo == CIRCLE)
         {
             void *c = el->forma;
-            fprintf(svg, "<circle cx=\"%.2f\" cy=\"%.2f\" r=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" />\n",
+            fprintf(svg, "<circle cx=\"%.2f\" cy=\"%.2f\" r=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" opacity=\"0.6\" />\n",
                     circulo_get_x(c), circulo_get_y(c), circulo_get_raio(c),
                     circulo_get_cor_borda(c), circulo_get_cor_preenchimento(c));
         }
         else if (el->tipo == RECTANGLE)
         {
             void *r = el->forma;
-            fprintf(svg, "<rect x=\"%.2f\" y=\"%.2f\" width=\"%.2f\" height=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" />\n",
+            fprintf(svg, "<rect x=\"%.2f\" y=\"%.2f\" width=\"%.2f\" height=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" opacity=\"0.6\" />\n",
                     retangulo_get_x(r), retangulo_get_y(r),
                     retangulo_get_largura(r), retangulo_get_altura(r),
                     retangulo_get_cor_borda(r), retangulo_get_cor_preenchimento(r));
@@ -145,7 +145,7 @@ void geo_escrever_svg(Geo geo, FILE *svg)
         else if (el->tipo == LINE)
         {
             void *l = el->forma;
-            fprintf(svg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"%s\" stroke-width=\"1\" />\n",
+            fprintf(svg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"%s\" stroke-width=\"1\" opacity=\"0.6\" />\n",
                     line_get_x1(l), line_get_y1(l), line_get_x2(l), line_get_y2(l), line_get_color(l));
         }
         else if (el->tipo == TEXT)
@@ -158,7 +158,7 @@ void geo_escrever_svg(Geo geo, FILE *svg)
             if (anchor == 'e')
                 svg_anchor = "end";
 
-            fprintf(svg, "<text x=\"%.2f\" y=\"%.2f\" stroke=\"%s\" fill=\"%s\" text-anchor=\"%s\">%s</text>\n",
+            fprintf(svg, "<text x=\"%.2f\" y=\"%.2f\" stroke=\"%s\" fill=\"%s\" text-anchor=\"%s\" opacity=\"0.6\">%s</text>\n",
                     text_get_x(t), text_get_y(t), text_get_border_color(t),
                     text_get_fill_color(t), svg_anchor, text_get_text(t));
         }
