@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
 #include "../visibilidade/visibilidade.h"
 #include "../geo/geo.h"
 #include "../svg/svg.h"
@@ -13,18 +14,7 @@
 #include "../formas/texto/texto.h"
 #include "../formas/formas.h"
 
-// Definição local de ElementoGeo (compatível com geo.c)
 typedef struct { TipoForma tipo; void *forma; } ElementoGeo;
-
-// Funções auxiliares locais
-static Ponto obter_ancora(void* forma, TipoForma tipo) {
-    Ponto p = {0,0};
-    if (tipo == CIRCLE) { p.x = circulo_get_x(forma); p.y = circulo_get_y(forma); }
-    else if (tipo == RECTANGLE) { p.x = retangulo_get_x(forma); p.y = retangulo_get_y(forma); }
-    else if (tipo == LINE) { p.x = line_get_x1(forma); p.y = line_get_y1(forma); }
-    else if (tipo == TEXT) { p.x = text_get_x(forma); p.y = text_get_y(forma); }
-    return p;
-}
 
 static int obter_id(void* forma, TipoForma tipo) {
     if (tipo == CIRCLE) return circulo_get_id(forma);
@@ -42,6 +32,64 @@ static const char* obter_tipo_str(TipoForma tipo) {
     return "?";
 }
 
+static bool forma_foi_atingida(PoligonoVisibilidade pol, ElementoGeo* el) {
+    if (!pol) return false;
+
+    if (el->tipo == RECTANGLE) {
+        double x = retangulo_get_x(el->forma);
+        double y = retangulo_get_y(el->forma);
+        double w = retangulo_get_largura(el->forma);
+        double h = retangulo_get_altura(el->forma);
+        
+        Ponto p1 = {x, y};
+        Ponto p2 = {x + w, y};
+        Ponto p3 = {x + w, y + h};
+        Ponto p4 = {x, y + h};
+        
+        if (visibilidade_ponto_atingido(pol, p1)) return true;
+        if (visibilidade_ponto_atingido(pol, p2)) return true;
+        if (visibilidade_ponto_atingido(pol, p3)) return true;
+        if (visibilidade_ponto_atingido(pol, p4)) return true;
+        
+        Ponto centro = {x + w/2, y + h/2};
+        if (visibilidade_ponto_atingido(pol, centro)) return true;
+
+    } else if (el->tipo == LINE) {
+        Ponto p1 = {line_get_x1(el->forma), line_get_y1(el->forma)};
+        Ponto p2 = {line_get_x2(el->forma), line_get_y2(el->forma)};
+        if (visibilidade_ponto_atingido(pol, p1)) return true;
+        if (visibilidade_ponto_atingido(pol, p2)) return true;
+        Ponto pm = {(p1.x + p2.x)/2, (p1.y + p2.y)/2};
+        if (visibilidade_ponto_atingido(pol, pm)) return true;
+
+    } else if (el->tipo == TEXT) {
+        double x = text_get_x(el->forma);
+        double y = text_get_y(el->forma);
+        Ponto p1 = {x, y};
+        if (visibilidade_ponto_atingido(pol, p1)) return true;
+
+    } else if (el->tipo == CIRCLE) {
+        double cx = circulo_get_x(el->forma);
+        double cy = circulo_get_y(el->forma);
+        double r = circulo_get_raio(el->forma);
+        
+        Ponto c = {cx, cy};
+        if (visibilidade_ponto_atingido(pol, c)) return true;
+        
+        Ponto p1 = {cx + r, cy};
+        Ponto p2 = {cx - r, cy};
+        Ponto p3 = {cx, cy + r};
+        Ponto p4 = {cx, cy - r};
+        
+        if (visibilidade_ponto_atingido(pol, p1)) return true;
+        if (visibilidade_ponto_atingido(pol, p2)) return true;
+        if (visibilidade_ponto_atingido(pol, p3)) return true;
+        if (visibilidade_ponto_atingido(pol, p4)) return true;
+    }
+    
+    return false;
+}
+
 static int g_anteparo_id_counter = 5000;
 
 static void adicionar_forma_geo(LinkedList formas, void* nova_forma, TipoForma tipo) {
@@ -52,7 +100,6 @@ static void adicionar_forma_geo(LinkedList formas, void* nova_forma, TipoForma t
 }
 
 void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const char* geoName) {
-    // Preparar nomes de arquivos
     char *qryBase = strrchr(qryPath, '/');
     qryBase = (qryBase) ? qryBase + 1 : (char*)qryPath;
     char qryNoExt[100]; strcpy(qryNoExt, qryBase); 
@@ -66,10 +113,9 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
     FILE *ftxt = fopen(txtPath, "w");
     FILE *fsvg_final = fopen(svgFinalPath, "w");
 
-    // Inicializa o SVG Final (acumulador)
     double min_x, min_y, max_x, max_y;
     geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
-    double margin = 100.0; // Margem de segurança visual
+    double margin = 100.0; 
     
     if(fsvg_final) {
         svg_iniciar(fsvg_final, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
@@ -85,10 +131,8 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
     char linha[1024];
     while (fgets(linha, sizeof(linha), fqry)) {
         char cmd[10];
-        // Lê o comando
         if (sscanf(linha, "%s", cmd) != 1) continue;
 
-        // Variáveis comuns às bombas
         double x = 0, y = 0;
         char sfx[100] = "";
         char cor[50] = "";
@@ -99,7 +143,7 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
         char orientacao = 'v';
 
         if (strcmp(cmd, "a") == 0) {
-             int lidos = sscanf(linha, "%*s %d %d %c", &id_ini, &id_fim, &orientacao);
+            int lidos = sscanf(linha, "%*s %d %d %c", &id_ini, &id_fim, &orientacao);
             if (lidos < 3) orientacao = 'v';
 
             fprintf(ftxt, "[*] a\n");
@@ -128,21 +172,31 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                         double r = circulo_get_raio(c);
                         const char* cor_borda = circulo_get_cor_borda(c);
 
-                        double x1, y1, x2, y2;
                         if (orientacao == 'h') {
-                            x1 = cx - r; y1 = cy;
-                            x2 = cx + r; y2 = cy;
+                            int id1 = g_anteparo_id_counter++;
+                            void* l1 = line_create(id1, cx - r, cy, cx, cy, cor_borda);
+                            adicionar_forma_geo(novas_formas, l1, LINE);
+                            fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
+                                    id, obter_tipo_str(CIRCLE), id1, cx - r, cy, cx, cy);
+
+                            int id2 = g_anteparo_id_counter++;
+                            void* l2 = line_create(id2, cx, cy, cx + r, cy, cor_borda);
+                            adicionar_forma_geo(novas_formas, l2, LINE);
+                            fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
+                                    id, obter_tipo_str(CIRCLE), id2, cx, cy, cx + r, cy);
                         } else {
-                            x1 = cx; y1 = cy - r;
-                            x2 = cx; y2 = cy + r;
+                            int id1 = g_anteparo_id_counter++;
+                            void* l1 = line_create(id1, cx, cy - r, cx, cy, cor_borda);
+                            adicionar_forma_geo(novas_formas, l1, LINE);
+                            fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
+                                    id, obter_tipo_str(CIRCLE), id1, cx, cy - r, cx, cy);
+
+                            int id2 = g_anteparo_id_counter++;
+                            void* l2 = line_create(id2, cx, cy, cx, cy + r, cor_borda);
+                            adicionar_forma_geo(novas_formas, l2, LINE);
+                            fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
+                                    id, obter_tipo_str(CIRCLE), id2, cx, cy, cx, cy + r);
                         }
-
-                        int new_id = g_anteparo_id_counter++;
-                        void* nova_linha = line_create(new_id, x1, y1, x2, y2, cor_borda);
-                        adicionar_forma_geo(novas_formas, nova_linha, LINE);
-
-                        fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
-                                id, obter_tipo_str(CIRCLE), new_id, x1, y1, x2, y2);
                     }
                     else if (el->tipo == RECTANGLE) {
                         void* r = el->forma;
@@ -215,18 +269,17 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
             }
             list_destroy(novas_formas);
         }
-        else if (strcmp(cmd, "d") == 0) { // Destruição: d x y sfx
+        else if (strcmp(cmd, "d") == 0) {
             sscanf(linha, "%*s %lf %lf %s", &x, &y, sfx);
             fprintf(ftxt, "[*] d x=%.2f y=%.2f\n", x, y);
             is_bomb = true;
         } 
-        else if (strcmp(cmd, "p") == 0) { // Pintura: p x y cor sfx
-            sscanf(linha, "%*s %lf %lf %s %s", &x, &y, cor, sfx); // cor vem antes do sfx no qry normal? Ver PDF.
-            // PDF: p x y cor sfx. Ajustado.
+        else if (strcmp(cmd, "p") == 0) {
+            sscanf(linha, "%*s %lf %lf %s %s", &x, &y, cor, sfx);
             fprintf(ftxt, "[*] p x=%.2f y=%.2f %s\n", x, y, cor);
             is_bomb = true;
         }
-        else if (strcmp(cmd, "cln") == 0) { // Clonagem: cln x y dx dy sfx
+        else if (strcmp(cmd, "cln") == 0) {
             sscanf(linha, "%*s %lf %lf %lf %lf %s", &x, &y, &dx, &dy, sfx);
             fprintf(ftxt, "[*] cln x=%.2f y=%.2f dx=%.2f dy=%.2f\n", x, y, dx, dy);
             is_bomb = true;
@@ -235,7 +288,6 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
         if (is_bomb) {
             Ponto bomba = {x, y};
 
-            // 1. Preparar Barreiras (Segmentos)
             LinkedList barreiras = geo_obter_todas_barreiras(cidade);
             LinkedList biombo = geo_gerar_biombo(cidade, bomba);
 
@@ -244,21 +296,16 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
             }
             list_destroy(biombo);
 
-            // 2. Calcular Polígono de Visibilidade
             PoligonoVisibilidade pol = visibilidade_calcular(bomba, barreiras);
 
-            // 3. Processar Atingidos (Destruir, Pintar, Clonar)
             LinkedList formas = geo_get_formas(cidade);
             int n = list_size(formas);
-            
-            // Lista temporária para remoções (segurança de memória)
             LinkedList to_remove_ids = list_create(); 
 
             for(int i = 0; i < n; i++) {
                 ElementoGeo* el = (ElementoGeo*)list_get_at(formas, i);
-                Ponto anc = obter_ancora(el->forma, el->tipo);
                 
-                if (visibilidade_ponto_atingido(pol, anc)) {
+                if (forma_foi_atingida(pol, el)) {
                     int id = obter_id(el->forma, el->tipo);
                     
                     if (strcmp(cmd, "d") == 0) {
@@ -273,12 +320,11 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                     else if (strcmp(cmd, "cln") == 0) {
                         fprintf(ftxt, "\t%d %s (clone do %d %s)\n", 
                             id + 10000, obter_tipo_str(el->tipo), id, obter_tipo_str(el->tipo));
-                        geo_clonar_forma(cidade, id); // Nota: clonagem pode precisar de dx/dy na API geo
+                        geo_clonar_forma(cidade, id);
                     }
                 }
             }
 
-            // Aplicar remoções fora do loop principal
             while(!list_is_empty(to_remove_ids)) {
                 int* id_ptr = (int*)list_remove_front(to_remove_ids);
                 geo_remover_forma(cidade, *id_ptr);
@@ -286,12 +332,9 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
             }
             list_destroy(to_remove_ids);
 
-            // 4. Desenhar SVG
             if (strcmp(sfx, "-") == 0) {
-                // Acumula no final
                 if (fsvg_final) svg_desenhar_poligono(fsvg_final, pol, "yellow", 0.5);
             } else {
-                // Cria arquivo snapshot separado
                 char snapshotPath[512];
                 sprintf(snapshotPath, "%s/%s-%s-%s.svg", outPath, geoName, qryNoExt, sfx);
                 FILE *fsnap = fopen(snapshotPath, "w");
@@ -304,19 +347,13 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                 }
             }
 
-            // Limpeza
             visibilidade_destruir(pol);
-            // Liberar memória dos segmentos barreira
             while(!list_is_empty(barreiras)) free(list_remove_front(barreiras));
             list_destroy(barreiras);
         }
     }
 
     if (fsvg_final) {
-        // Redesenha a cidade por cima ou por baixo? O PDF diz que o polígono deve aparecer. 
-        // Se desenharmos a cidade DEPOIS, ela fica em cima do polígono (melhor para ver as formas).
-        // Se desenharmos ANTES (já feito no init), o polígono cobre.
-        // Vamos finalizar.
         svg_finalizar(fsvg_final);
         fclose(fsvg_final);
     }
