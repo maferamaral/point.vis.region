@@ -1,0 +1,66 @@
+Id: 86 Type: 2 transformed to barrier.
+Id: 96 (130.91,174.45) -> (155.67,199.19)
+Id: 83 Type: 2 transformed to barrier.
+Id: 97 (268.11,283.86) -> (292.87,308.60)
+Id: 94 Type: 3 transformed to barrier.
+Id: 98 (136.97,125.76) -> (246.97,125.76)
+Id: 91 Type: 3 transformed to barrier.
+Id: 99 (136.97,301.24) -> (246.97,301.24)
+Id: 84 Type: 2 transformed to barrier.
+Id: 100 (191.97,301.24) -> (216.73,325.98)
+Id: 89 Type: 3 transformed to barrier.
+Id: 101 (247.00,213.50) -> (357.00,213.50)
+Id: 75 Type: 0 transformed to barrier.
+Id: 102 (302.00,183.50) -> (302.00,243.50)
+Id: 93 Type: 3 transformed to barrier.
+Id: 103 (75.91,174.45) -> (185.91,174.45)
+Id: 85 Type: 2 transformed to barrier.
+Id: 104 (130.91,252.55) -> (155.67,277.29)
+Id: 82 Type: 2 transformed to barrier.
+Id: 105 (302.00,213.50) -> (326.76,238.24)
+Id: 76 Type: 0 transformed to barrier.
+Id: 106 (268.11,253.86) -> (268.11,313.86)
+Id: 88 Type: 2 transformed to barrier.
+Id: 107 (268.11,143.14) -> (292.87,167.87)
+Id: 92 Type: 3 transformed to barrier.
+Id: 108 (75.91,252.55) -> (185.91,252.55)
+Id: 78 Type: 0 transformed to barrier.
+Id: 109 (130.91,222.55) -> (130.91,282.55)
+Id: 79 Type: 0 transformed to barrier.
+Id: 110 (130.91,144.45) -> (130.91,204.45)
+Id: 95 Type: 3 transformed to barrier.
+Id: 111 (213.11,143.14) -> (323.11,143.14)
+Id: 81 Type: 0 transformed to barrier.
+Id: 112 (268.11,113.14) -> (268.11,173.14)
+Id: 87 Type: 2 transformed to barrier.
+Id: 113 (191.97,125.76) -> (216.73,150.50)
+Id: 77 Type: 0 transformed to barrier.
+Id: 114 (191.97,271.24) -> (191.97,331.24)
+Id: 80 Type: 0 transformed to barrier.
+Id: 115 (191.97,95.76) -> (191.97,155.76)
+Id: 90 Type: 3 transformed to barrier.
+Id: 116 (213.11,283.86) -> (323.11,283.86)
+Id: 44 cloned.
+Id: 26 cloned.
+Id: 35 cloned.
+Id: 86 cloned.
+Id: 38 cloned.
+Id: 83 cloned.
+Id: 84 cloned.
+Id: 6 cloned.
+Id: 53 cloned.
+Id: 85 cloned.
+Id: 82 cloned.
+Id: 25 cloned.
+Id: 46 cloned.
+Id: 88 cloned.
+Id: 9 cloned.
+Id: 37 cloned.
+Id: 47 cloned.
+Id: 43 cloned.
+Id: 54 cloned.
+Id: 7 cloned.
+Id: 87 cloned.
+Id: 41 cloned.
+Id: 48 cloned.
+Id: 29 cloned.

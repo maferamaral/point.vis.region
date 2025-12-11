@@ -79,7 +79,6 @@ static void clone_generic(LinkedList formas, void *forma, TipoForma tipo, double
     } else if (tipo == TEXT) {
         double x = text_get_x(forma);
         double y = text_get_y(forma);
-        // Note: text module getter/setter naming might vary. Using what was seen.
         const char *cb = text_get_border_color(forma);
         const char *cp = text_get_fill_color(forma);
         const char *conteudo = text_get_text(forma);
@@ -96,8 +95,7 @@ static void clone_generic(LinkedList formas, void *forma, TipoForma tipo, double
 }
 
 // Helper to create segments based on form type and rule
-// Helper to create segments based on form type and rule
-static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barriers, char orientation, int *id_counter, FILE *ftxt) {
+static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barriers, char orientation, int *id_counter, FILE *ftxt, int id_original) {
     if (tipo == RECTANGLE) {
         double x = retangulo_get_x(forma);
         double y = retangulo_get_y(forma);
@@ -112,13 +110,17 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         Ponto pts[] = {p1, p2, p3, p4};
         Ponto next_pts[] = {p2, p3, p4, p1};
 
+        int ids[4];
+        for(int k=0; k<4; k++) ids[k] = (*id_counter)++;
+
+        fprintf(ftxt, "  %d (retangulo) -> %d, %d, %d, %d\n", id_original, ids[0], ids[1], ids[2], ids[3]);
+
         for (int k = 0; k < 4; k++) {
             Segmento *s = malloc(sizeof(Segmento));
             s->p1 = pts[k];
             s->p2 = next_pts[k];
-            s->id = (*id_counter)++;
+            s->id = ids[k];
             list_insert_back(barriers, s);
-            fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
         }
 
     } else if (tipo == LINE) {
@@ -129,7 +131,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->p2.y = line_get_y2(forma);
         s->id = (*id_counter)++;
         list_insert_back(barriers, s);
-        fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+        fprintf(ftxt, "  %d (linha) -> %d\n", id_original, s->id);
 
     } else if (tipo == CIRCLE) {
         double cx = circulo_get_x(forma);
@@ -149,13 +151,12 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->p1 = p1; s->p2 = p2;
         s->id = (*id_counter)++;
         list_insert_back(barriers, s);
-        fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+        fprintf(ftxt, "  %d (circulo) -> %d\n", id_original, s->id);
 
     } else if (tipo == TEXT) {
         double xt = text_get_x(forma);
         double yt = text_get_y(forma);
         char anchor = text_get_anchor(forma);
-        // Assuming text_get_text exists or similar
         const char *txt = text_get_text(forma);
         int len = strlen(txt);
         double width = 10.0 * len;
@@ -181,7 +182,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->p1 = p1; s->p2 = p2;
         s->id = (*id_counter)++;
         list_insert_back(barriers, s);
-        fprintf(ftxt, "Id: %d (%.2f,%.2f) -> (%.2f,%.2f)\n", s->id, s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+        fprintf(ftxt, "  %d (texto) -> %d\n", id_original, s->id);
     }
 }
 
@@ -218,8 +219,8 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
 
     // Get initial barriers (universe walls etc)
     LinkedList all_barriers = geo_obter_todas_barreiras(cidade);
-    // Maintain list of PoligonoVisibilidade for sfx="-"
-    LinkedList final_polys = list_create();
+    // Accumulate ALL generated polygons for the final SVG
+    LinkedList accumulated_polys = list_create();
 
     // Initialize ID counter for new segments
     LinkedList formas = geo_get_formas(cidade);
@@ -247,6 +248,8 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                 j = atoi(sj);
                 if (so) opt = so[0];
             
+                fprintf(ftxt, "a:\n");
+                
                 // remove_at is destructive, so iteration needs care.
                 int k = 0;
                 while (k < list_size(formas)) {
@@ -254,19 +257,13 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                     int id = get_id_generico(el->forma, el->tipo);
                     
                     if (id >= i && id <= j) {
-                        fprintf(ftxt, "Id: %d Type: %d transformed to barrier.\n", id, el->tipo);
-                        add_barriers_from_form(el->forma, el->tipo, all_barriers, opt, &seg_id_counter, ftxt);
+                        add_barriers_from_form(el->forma, el->tipo, all_barriers, opt, &seg_id_counter, ftxt, id);
                         
-                        if (el->tipo != LINE) {
-                            // Remove from Geo
-                            ElementoGeo *removed = (ElementoGeo *)list_remove_at(formas, k);
-                            // TODO: destructor for shape? skipping for now as 'geo' might own strict memory mgmt
-                            free(removed);
-                            // k stays same
-                        } else {
-                            // Line stays
-                            k++;
-                        }
+                        // Remove from Geo (including LINEs as per srcAndre behavior)
+                        ElementoGeo *removed = (ElementoGeo *)list_remove_at(formas, k);
+                        // TODO: destructor for shape? skipping for now as 'geo' might own strict memory mgmt
+                        free(removed);
+                        // k stays same
                     } else {
                         k++;
                     }
@@ -308,9 +305,11 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
            // Calc vis
            Ponto centro = {x, y};
            PoligonoVisibilidade poly = visibilidade_calcular(centro, all_barriers);
+           
+           // Store for final SVG
+           list_insert_back(accumulated_polys, poly);
             
            // Apply effects
-           LinkedList formas = geo_get_formas(cidade);
            int k = 0;
            while(k < list_size(formas)) {
                 ElementoGeo *el = (ElementoGeo *)list_get_at(formas, k);
@@ -330,52 +329,43 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                     } else if (strcmp(cmd, "cln") == 0) {
                         clone_generic(formas, el->forma, el->tipo, dx, dy);
                         fprintf(ftxt, "Id: %d cloned.\n", get_id_generico(el->forma, el->tipo));
-                        // Cloned element is added at end. Since we iterate by index,
-                        // and new items are at end, we might process the clone?
-                        // list_size grows. But standard behavior is process 'existing' so we should capture initial size?
-                        // But wait, if we process clone, it might clone again? (Infinite loop if dx=0?)
-                        // We should probably iterate up to INITIAL size.
-                        // I will assume simple iteration for now but ideally should fix loop bounds.
                     }
                 }
                 k++;
            }
-           
-           // Output SVG
-           if (strcmp(actual_sfx, "-") == 0) {
-               list_insert_back(final_polys, poly);
-           } else {
-               char svgName[512];
-               sprintf(svgName, "%s-%s.svg", outPath, actual_sfx);
-               FILE *fsvg = fopen(svgName, "w");
-               start_svg(fsvg);
-               geo_escrever_svg(cidade, fsvg);
-               svg_desenhar_poligono(fsvg, poly, "yellow", 0.5);
-               end_svg(fsvg);
-               fclose(fsvg);
-               visibilidade_destruir_poly(poly);
-           }
         }
     }
     
-    // Final SVG
+    // Final Combined SVG
     char finalSvg[512];
     sprintf(finalSvg, "%s.svg", outPath);
     FILE *favg = fopen(finalSvg, "w");
     start_svg(favg);
+    
+    // 1. Draw Final Shapes
     geo_escrever_svg(cidade, favg);
-    for (int i=0; i<list_size(final_polys); i++) {
-        PoligonoVisibilidade p = list_get_at(final_polys, i);
-        svg_desenhar_poligono(favg, p, "yellow", 0.5);
-        visibilidade_destruir_poly(p);
+    
+    // 2. Draw Anteparo Segments (Lines)
+    for(int i=0; i<list_size(all_barriers); i++) {
+        Segmento *s = list_get_at(all_barriers, i);
+        fprintf(favg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"black\" stroke-width=\"1\" />\n",
+            s->p1.x, s->p1.y, s->p2.x, s->p2.y);
     }
+
+    // 3. Draw All Polygons
+    for (int i=0; i<list_size(accumulated_polys); i++) {
+        PoligonoVisibilidade p = list_get_at(accumulated_polys, i);
+        svg_desenhar_poligono(favg, p, "yellow", 0.5);
+    }
+    
     end_svg(favg);
     fclose(favg);
     
     fclose(fqry);
     fclose(ftxt);
     
-    list_destroy(final_polys);
+    for(int i=0; i<list_size(accumulated_polys); i++) visibilidade_destruir_poly(list_get_at(accumulated_polys, i));
+    list_destroy(accumulated_polys);
     for(int i=0; i<list_size(all_barriers); i++) free(list_get_at(all_barriers, i));
     list_destroy(all_barriers);
 }
