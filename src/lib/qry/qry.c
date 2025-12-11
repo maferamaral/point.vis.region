@@ -96,6 +96,13 @@ static void clone_generic(LinkedList formas, void *forma, TipoForma tipo, double
 
 // Helper to create segments based on form type and rule
 static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barriers, char orientation, int *id_counter, FILE *ftxt, int id_original) {
+    // Determine color
+    const char *cor = "black";
+    if (tipo == RECTANGLE) cor = retangulo_get_cor_borda(forma);
+    else if (tipo == CIRCLE) cor = circulo_get_cor_borda(forma);
+    else if (tipo == LINE) cor = line_get_color(forma);
+    else if (tipo == TEXT) cor = text_get_border_color(forma);
+
     if (tipo == RECTANGLE) {
         double x = retangulo_get_x(forma);
         double y = retangulo_get_y(forma);
@@ -120,6 +127,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
             s->p1 = pts[k];
             s->p2 = next_pts[k];
             s->id = ids[k];
+            strncpy(s->cor, cor, 31);
             list_insert_back(barriers, s);
         }
 
@@ -130,6 +138,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         s->p2.x = line_get_x2(forma);
         s->p2.y = line_get_y2(forma);
         s->id = (*id_counter)++;
+        strncpy(s->cor, cor, 31);
         list_insert_back(barriers, s);
         fprintf(ftxt, "  %d (linha) -> %d\n", id_original, s->id);
 
@@ -150,6 +159,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         Segmento *s = malloc(sizeof(Segmento));
         s->p1 = p1; s->p2 = p2;
         s->id = (*id_counter)++;
+        strncpy(s->cor, cor, 31);
         list_insert_back(barriers, s);
         fprintf(ftxt, "  %d (circulo) -> %d\n", id_original, s->id);
 
@@ -181,6 +191,7 @@ static void add_barriers_from_form(void *forma, TipoForma tipo, LinkedList barri
         Segmento *s = malloc(sizeof(Segmento));
         s->p1 = p1; s->p2 = p2;
         s->id = (*id_counter)++;
+        strncpy(s->cor, cor, 31);
         list_insert_back(barriers, s);
         fprintf(ftxt, "  %d (texto) -> %d\n", id_original, s->id);
     }
@@ -219,12 +230,19 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
 
     // Get initial barriers (universe walls etc)
     LinkedList all_barriers = geo_obter_todas_barreiras(cidade);
+    
+    // Initialize ID counter and fix initial barrier IDs
+    LinkedList formas = geo_get_formas(cidade);
+    int seg_id_counter = get_max_id(formas) + 1;
+
     // Accumulate ALL generated polygons for the final SVG
     LinkedList accumulated_polys = list_create();
 
-    // Initialize ID counter for new segments
-    LinkedList formas = geo_get_formas(cidade);
-    int seg_id_counter = get_max_id(formas) + 1;
+    for(int i=0; i<list_size(all_barriers); i++) {
+        Segmento *s = list_get_at(all_barriers, i);
+        if (s->id == 0) s->id = seg_id_counter++; // Assign unique ID if 0
+        strncpy(s->cor, "black", 31);
+    }
 
     char line[1024];
     while (fgets(line, sizeof(line), fqry)) {
@@ -250,7 +268,6 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
             
                 fprintf(ftxt, "a:\n");
                 
-                // remove_at is destructive, so iteration needs care.
                 int k = 0;
                 while (k < list_size(formas)) {
                     ElementoGeo *el = (ElementoGeo *)list_get_at(formas, k);
@@ -261,16 +278,14 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                         
                         // Remove from Geo (including LINEs as per srcAndre behavior)
                         ElementoGeo *removed = (ElementoGeo *)list_remove_at(formas, k);
-                        // TODO: destructor for shape? skipping for now as 'geo' might own strict memory mgmt
+                        // cleanup
                         free(removed);
-                        // k stays same
                     } else {
                         k++;
                     }
                 }
             }
         } else if (strcmp(cmd, "d") == 0 || strcmp(cmd, "p") == 0 || strcmp(cmd, "cln") == 0) {
-           // Parse args using strtok
            char buffCopy[1024];
            strcpy(buffCopy, line);
            char *token = strtok(buffCopy, " \n"); // cmd
@@ -309,7 +324,7 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
            // Store for final SVG
            list_insert_back(accumulated_polys, poly);
             
-           // Apply effects
+           // Apply effects to SHAPES
            int k = 0;
            while(k < list_size(formas)) {
                 ElementoGeo *el = (ElementoGeo *)list_get_at(formas, k);
@@ -320,7 +335,7 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                         fprintf(ftxt, "Id: %d destroyed.\n", get_id_generico(el->forma, el->tipo));
                         ElementoGeo *removed = list_remove_at(formas, k);
                         free(removed);
-                        continue; // No inc k
+                        continue; 
                     } else if (strcmp(cmd, "p") == 0) {
                         if (cor) {
                             set_color_generic(el->forma, el->tipo, cor);
@@ -333,7 +348,49 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
                 }
                 k++;
            }
-        }
+
+           // EFFECT FOR BARRIERS (Anteparos)
+           k = 0;
+           int initial_barrier_count = list_size(all_barriers); // Fix infinite cloning
+           while (k < initial_barrier_count) {
+               Segmento *s = (Segmento*)list_get_at(all_barriers, k);
+               bool atingido = visibilidade_ponto_atingido(poly, s->p1); // Use p1 as anchor
+               
+               if (atingido && s->id >= 0) { // Don't allow destroying bbox (id -1)
+                   if (strcmp(cmd, "d") == 0) {
+                       fprintf(ftxt, "Barrier Id: %d destroyed.\n", s->id);
+                       Segmento *rem = list_remove_at(all_barriers, k);
+                       free(rem);
+                       initial_barrier_count--; // Adjust count as list shrinks? 
+                       // No, if we remove at k, list shifts. k should NOT increment.
+                       // But initial_barrier_count should decrease to avoid reading invalid indices?
+                       // Or just 'continue' without k++ logic, but limit total iterations?
+                       // Safer: iterate backwards? or handle index carefully.
+                       // Using k-- after remove? 
+                       k--; // Re-evaluate index k which now holds next element
+                       initial_barrier_count--; // List shrank
+                   } else if (strcmp(cmd, "p") == 0) {
+                       if (cor) {
+                           strncpy(s->cor, cor, 31);
+                           fprintf(ftxt, "Barrier Id: %d painted %s.\n", s->id, cor);
+                       }
+                   } else if (strcmp(cmd, "cln") == 0) {
+                       // Clone barrier
+                       Segmento *new_s = malloc(sizeof(Segmento));
+                       *new_s = *s;
+                       new_s->p1.x += dx; new_s->p1.y += dy;
+                       new_s->p2.x += dx; new_s->p2.y += dy;
+                       new_s->id = seg_id_counter++; // New ID
+                       fprintf(ftxt, "Barrier Id: %d cloned to %d.\n", s->id, new_s->id);
+                       list_insert_back(all_barriers, new_s);
+                       // NOT decrementing initial_barrier_count allows us to stop before new items
+                       // New items are at indices >= original count.
+                   }
+               }
+               k++;
+           }
+
+        } // End command block
     }
     
     // Final Combined SVG
@@ -345,11 +402,13 @@ void qry_processar(Geo cidade, const char *qryPath, const char *outPath, const c
     // 1. Draw Final Shapes
     geo_escrever_svg(cidade, favg);
     
-    // 2. Draw Anteparo Segments (Lines)
+    // 2. Draw Anteparo Segments (Lines) with color
     for(int i=0; i<list_size(all_barriers); i++) {
         Segmento *s = list_get_at(all_barriers, i);
-        fprintf(favg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"black\" stroke-width=\"1\" />\n",
-            s->p1.x, s->p1.y, s->p2.x, s->p2.y);
+        if (s->id == 0) continue; 
+        
+        fprintf(favg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"%s\" stroke-width=\"1\" />\n",
+            s->p1.x, s->p1.y, s->p2.x, s->p2.y, s->cor);
     }
 
     // 3. Draw All Polygons
