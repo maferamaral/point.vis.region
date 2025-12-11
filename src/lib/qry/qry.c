@@ -56,7 +56,7 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
         geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
         double margin = 100.0;
         svg_iniciar(fsvg, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
-        svg_desenhar_cidade(fsvg, cidade);
+        // svg_desenhar_cidade movido para o final para refletir as alterações
     }
 
     if (!fqry) return;
@@ -109,13 +109,29 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                     int id = obter_id(el->forma, el->tipo);
                     if (strcmp(cmd, "b/") == 0) {
                         fprintf(ftxt, " -> Forma ID %d destruida.\n", id);
-                        // TODO: Implementar remoção segura da lista
+                        geo_remover_forma(cidade, id);
+                        // Como a lista foi alterada, precisamos reiniciar o loop para nao crashar
+                        // O jeito mais simples é decrementar i, mas cuidado pois o tamanho mudou
+                        // Mas como list_get_at usa indice, e removemos um elemento, os elementos shiftam
+                        // Então decrementamos i e atualizamos nformas
+                        i--;
+                        nformas = list_size(formas);
                     } else if (strcmp(cmd, "b#") == 0) {
                         fprintf(ftxt, " -> Forma ID %d pintada de %s.\n", id, cor);
-                        // TODO: Chamar set_cor
+                        geo_alterar_cor(cidade, id, cor);
                     } else if (strcmp(cmd, "b?") == 0) {
                         fprintf(ftxt, " -> Forma ID %d clonada.\n", id);
-                        // TODO: Chamar clone
+                        geo_clonar_forma(cidade, id);
+                        // Clonar aumenta a lista. Se o clone for adicionado no fim, ele será testado?
+                        // Se for no fim, list_size aumenta. Se for adicionado no fim e o loop vai até o n inicial?
+                        // list_size(formas) já foi capturado em nformas no inicio do loop?
+                        // Sim, então clones novos não são processados neste turno, o que é CORRETO.
+                        // Mas se quisermos processar clones no mesmo turno? Geralmente não.
+                        // Apenas precisamos garantir que nao acessaremos memoria invalida se a lista for realocada.
+                        // LinkedList geralmente é estável.
+                        
+                        // Atualiza nformas se quisessemos processar. Mas nao queremos destruir o clone no mesmo turno
+                        // nformas = list_size(formas); // Se descomentar, processa o clone
                     }
                 }
             }
@@ -130,7 +146,11 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
         }
     }
 
-    if(fsvg) { svg_finalizar(fsvg); fclose(fsvg); }
+    if(fsvg) { 
+        svg_desenhar_cidade(fsvg, cidade);
+        svg_finalizar(fsvg); 
+        fclose(fsvg); 
+    }
     if(fqry) fclose(fqry);
     if(ftxt) fclose(ftxt);
 }

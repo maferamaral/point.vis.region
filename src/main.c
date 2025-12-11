@@ -102,11 +102,7 @@ int main(int argc, char *argv[])
         char qryName[256];
         extract_filename(query_file, qryName);
 
-        char outPath[1024];
-        // Formato base: saida/nomegeo-nomeqry
-        snprintf(outPath, sizeof(outPath), "%s/%s-%s", output_dir, filename, qryName);
-
-        qry_processar(geo, full_qry_path, outPath, filename);
+        qry_processar(geo, full_qry_path, output_dir, filename);
         
         free(full_qry_path);
     }

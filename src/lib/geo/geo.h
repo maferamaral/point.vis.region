@@ -65,9 +65,12 @@ LinkedList geo_gerar_biombo(Geo geo, double margem);
  */
 void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, double *max_y);
 
-/**
- * Libera toda a memória alocada pelo módulo Geo.
- */
+
 void geo_destruir(Geo geo);
+
+// Operações de modificação
+void geo_remover_forma(Geo geo, int id);
+void geo_alterar_cor(Geo geo, int id, const char *cor);
+void geo_clonar_forma(Geo geo, int id);
 
 #endif
