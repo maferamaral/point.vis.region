@@ -18,6 +18,7 @@ typedef struct
     Ponto p1;
     Ponto p2;
     int id; // Opcional, útil para debug
+    char cor[32]; // Added for visibility/painting
 } Segmento;
 
 // --- Construtores ---
