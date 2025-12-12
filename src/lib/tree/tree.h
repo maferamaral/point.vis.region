@@ -59,4 +59,16 @@ void tree_postorder_walk(BinaryTree tree, VisitFunc visit);
 // Destrói a árvore liberando todos os nós
 void tree_destroy(BinaryTree tree, FreeFunc free_func);
 
+// Retorna o menor elemento da árvore
+void *tree_get_min(BinaryTree tree);
+
+// Retorna o maior elemento da árvore
+void *tree_get_max(BinaryTree tree);
+
+// Busca o predecessor (maior elemento menor que value, ou value se existir)
+void *tree_find_predecessor(BinaryTree tree, const void *value);
+
+// Busca o sucessor (menor elemento maior que value, ou value se existir)
+void *tree_find_successor(BinaryTree tree, const void *value);
+
 #endif // TREE_H

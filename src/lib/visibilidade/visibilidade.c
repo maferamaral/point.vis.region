@@ -2,13 +2,17 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
-#include "../tree/tree.h"
+#include <stdbool.h>
+#include "../arvore_seg/arvore_seg.h"
 #include "../utils/lista/lista.h"
 #include "../utils/sort/sort.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+#define EPSILON 1e-9
+#define MARGEM_BBOX 5.0
 
 // Estrutura opaca do polígono
 struct PoligonoVisibilidade_st
@@ -17,8 +21,7 @@ struct PoligonoVisibilidade_st
     Ponto centro;
 };
 
-static Ponto g_centro;
-static double g_angulo;
+// Método de ordenação
 static char g_sort_method = 'q';
 
 void visibilidade_set_sort_method(char method)
@@ -26,148 +29,155 @@ void visibilidade_set_sort_method(char method)
     g_sort_method = method;
 }
 
-static void *tree_get_min(BinaryTree tree)
-{
-    if (tree_is_empty(tree))
-        return NULL;
-    TreeNode node = tree_get_root(tree);
-    while (tree_node_left(node) != NULL)
-    {
-        node = tree_node_left(node);
-    }
-    return tree_node_get_data(node);
-}
+// ============================================================================
+// Estruturas Internas
+// ============================================================================
 
-// --- FUNÇÃO DE DISTÂNCIA ROBUSTA (CORREÇÃO DA COLINEARIDADE) ---
-// Resolve o problema da luz vazando quando o raio está alinhado com a parede
-static double distancia_raio_segmento_robusta(Ponto origem, double angulo, Segmento seg)
-{
-    // Tenta cálculo padrão
-    double d = distancia_raio_segmento(origem, angulo, seg);
-    
-    // Se falhou (infinito/NaN), pode ser colinearidade
-    if (isinf(d) || isnan(d)) {
-        // Verifica se os pontos do segmento estão alinhados com o ângulo
-        double ang1 = angulo_polar(origem, seg.p1);
-        double ang2 = angulo_polar(origem, seg.p2);
-        
-        // Normaliza
-        if (ang1 < 0) ang1 += 2 * M_PI;
-        if (ang2 < 0) ang2 += 2 * M_PI;
-        if (angulo < 0) angulo += 2 * M_PI;
-        
-        // Se algum dos pontos estiver no ângulo do raio (com tolerância)
-        // a distância é a desse ponto.
-        double diff1 = fabs(ang1 - angulo);
-        double diff2 = fabs(ang2 - angulo);
-        if (diff1 > M_PI) diff1 = 2*M_PI - diff1;
-        if (diff2 > M_PI) diff2 = 2*M_PI - diff2;
-        
-        double tol = 1e-4;
-        
-        // Se ambos alinhados (colinear radial), retorna o mais próximo
-        if (diff1 < tol && diff2 < tol) {
-             return min_d(distancia(origem, seg.p1), distancia(origem, seg.p2));
-        }
-        if (diff1 < tol) return distancia(origem, seg.p1);
-        if (diff2 < tol) return distancia(origem, seg.p2);
-    }
-    
-    return d;
-}
+typedef enum {
+    EVENTO_INICIO = 0,
+    EVENTO_FIM = 1
+} TipoEvento;
 
-int comparar_segmentos_ativos(const void *a, const void *b)
-{
-    Segmento *s1 = (Segmento *)a;
-    Segmento *s2 = (Segmento *)b;
-    
-    if (s1 == s2) return 0;
-
-    // Usa a versão robusta para não ignorar paredes alinhadas
-    double d1 = distancia_raio_segmento_robusta(g_centro, g_angulo, *s1);
-    double d2 = distancia_raio_segmento_robusta(g_centro, g_angulo, *s2);
-
-    if (fabs(d1 - d2) < EPSILON) {
-        // Desempate estável por endereço
-        return (s1 < s2) ? -1 : 1;
-    }
-    return (d1 < d2) ? -1 : 1;
-}
-
-typedef struct
-{
-    double angulo;
-    int tipo;
-    Segmento *seg;
+typedef struct {
     Ponto p;
+    double angulo;
+    double distancia;
+    TipoEvento tipo;
+    Segmento *seg;
 } Evento;
 
-int comparar_eventos(const void *a, const void *b)
+// Compara pontos com tolerância
+static bool ponto_igual(Ponto a, Ponto b)
+{
+    return fabs(a.x - b.x) < EPSILON && fabs(a.y - b.y) < EPSILON;
+}
+
+// Compara eventos para ordenação
+static int comparar_eventos(const void *a, const void *b)
 {
     Evento *e1 = *(Evento **)a;
     Evento *e2 = *(Evento **)b;
 
-    if (e1->angulo < e2->angulo - EPSILON) return -1;
-    if (e1->angulo > e2->angulo + EPSILON) return 1;
+    // 1. Por ângulo
+    if (fabs(e1->angulo - e2->angulo) > EPSILON)
+    {
+        return (e1->angulo < e2->angulo) ? -1 : 1;
+    }
 
+    // 2. INICIO antes de FIM
     if (e1->tipo != e2->tipo)
     {
-        return (e1->tipo == 0) ? -1 : 1; // INICIO antes de FIM
+        return (e1->tipo == EVENTO_INICIO) ? -1 : 1;
     }
 
-    double d1 = distancia(g_centro, e1->p);
-    double d2 = distancia(g_centro, e2->p);
-    if (fabs(d1 - d2) < EPSILON) return 0;
-    return (d1 < d2) ? -1 : 1;
-}
-
-static LinkedList preparar_segmentos(Ponto centro, LinkedList barreiras_originais)
-{
-    LinkedList processados = list_create();
-    int n = list_size(barreiras_originais);
-
-    for (int i = 0; i < n; i++)
+    // 3. Por distância (mais perto primeiro)
+    if (fabs(e1->distancia - e2->distancia) > EPSILON)
     {
-        Segmento *s = (Segmento *)list_get_at(barreiras_originais, i);
-
-        double ang1 = angulo_polar(centro, s->p1);
-        double ang2 = angulo_polar(centro, s->p2);
-
-        if (ang1 < 0) ang1 += 2 * M_PI;
-        if (ang2 < 0) ang2 += 2 * M_PI;
-
-        if (fabs(ang1 - ang2) > M_PI)
-        {
-            Ponto inter = interseccao_raio_segmento(centro, 0.0, *s);
-
-            if (!isnan(inter.x))
-            {
-                Segmento *s1 = malloc(sizeof(Segmento));
-                Segmento *s2 = malloc(sizeof(Segmento));
-
-                *s1 = segmento_criar(s->p1, inter);
-                *s2 = segmento_criar(inter, s->p2);
-
-                list_insert_back(processados, s1);
-                list_insert_back(processados, s2);
-                continue;
-            }
-        }
-
-        Segmento *copia = malloc(sizeof(Segmento));
-        *copia = *s;
-        list_insert_back(processados, copia);
+        return (e1->distancia < e2->distancia) ? -1 : 1;
     }
-    return processados;
+
+    return 0;
 }
+
+// Verifica se segmento cruza o raio horizontal (ângulo 0)
+static bool segmento_cruza_angulo_zero(Ponto centro, Segmento *seg)
+{
+    double ang1 = angulo_polar(centro, seg->p1);
+    double ang2 = angulo_polar(centro, seg->p2);
+    
+    // Normaliza para [0, 2PI]
+    if (ang1 < 0) ang1 += 2 * M_PI;
+    if (ang2 < 0) ang2 += 2 * M_PI;
+    
+    // Segmento cruza ângulo 0 se: um ângulo < epsilon E outro > PI
+    // Ou se ambos são muito pequenos
+    if ((ang1 < EPSILON && ang2 > M_PI) || (ang2 < EPSILON && ang1 > M_PI))
+        return true;
+    
+    // Ou se a distância no ângulo 0 é finita
+    double d = distancia_raio_segmento(centro, 0.0, *seg);
+    return !isinf(d) && !isnan(d) && d < 1e9;
+}
+
+// Insere vértice apenas se diferente do último
+static Ponto* inserir_vertice_unico(LinkedList vertices, Ponto novo, Ponto *ultimo)
+{
+    if (ultimo != NULL && ponto_igual(*ultimo, novo))
+    {
+        return ultimo;
+    }
+    
+    Ponto *p = malloc(sizeof(Ponto));
+    *p = novo;
+    list_insert_back(vertices, p);
+    return p;
+}
+
+// ============================================================================
+// Função Principal de Visibilidade
+// ============================================================================
 
 PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras_input)
 {
-    g_centro = centro;
     LinkedList vertices_poly = list_create();
 
-    LinkedList barreiras = preparar_segmentos(centro, barreiras_input);
+    if (list_size(barreiras_input) == 0)
+    {
+        struct PoligonoVisibilidade_st *poly = malloc(sizeof(struct PoligonoVisibilidade_st));
+        poly->vertices = vertices_poly;
+        poly->centro = centro;
+        return (PoligonoVisibilidade)poly;
+    }
 
+    // ========================================================================
+    // FASE 1: Criar cópia dos segmentos e adicionar bounding box
+    // ========================================================================
+    LinkedList barreiras = list_create();
+    
+    double min_x = 1e9, min_y = 1e9, max_x = -1e9, max_y = -1e9;
+    
+    for (int i = 0; i < list_size(barreiras_input); i++)
+    {
+        Segmento *s = (Segmento *)list_get_at(barreiras_input, i);
+        Segmento *copia = malloc(sizeof(Segmento));
+        *copia = *s;
+        list_insert_back(barreiras, copia);
+        
+        // Atualiza bounding box
+        if (s->p1.x < min_x) min_x = s->p1.x;
+        if (s->p1.y < min_y) min_y = s->p1.y;
+        if (s->p1.x > max_x) max_x = s->p1.x;
+        if (s->p1.y > max_y) max_y = s->p1.y;
+        if (s->p2.x < min_x) min_x = s->p2.x;
+        if (s->p2.y < min_y) min_y = s->p2.y;
+        if (s->p2.x > max_x) max_x = s->p2.x;
+        if (s->p2.y > max_y) max_y = s->p2.y;
+    }
+    
+    // Expande para incluir o centro
+    if (centro.x < min_x) min_x = centro.x;
+    if (centro.y < min_y) min_y = centro.y;
+    if (centro.x > max_x) max_x = centro.x;
+    if (centro.y > max_y) max_y = centro.y;
+    
+    // Adiciona margem e cria bounding box
+    min_x -= MARGEM_BBOX;
+    min_y -= MARGEM_BBOX;
+    max_x += MARGEM_BBOX;
+    max_y += MARGEM_BBOX;
+    
+    // 4 segmentos da bounding box
+    Segmento *bbox[4];
+    bbox[0] = malloc(sizeof(Segmento)); bbox[0]->p1 = (Ponto){min_x, min_y}; bbox[0]->p2 = (Ponto){max_x, min_y}; bbox[0]->id = -1;
+    bbox[1] = malloc(sizeof(Segmento)); bbox[1]->p1 = (Ponto){max_x, min_y}; bbox[1]->p2 = (Ponto){max_x, max_y}; bbox[1]->id = -2;
+    bbox[2] = malloc(sizeof(Segmento)); bbox[2]->p1 = (Ponto){max_x, max_y}; bbox[2]->p2 = (Ponto){min_x, max_y}; bbox[2]->id = -3;
+    bbox[3] = malloc(sizeof(Segmento)); bbox[3]->p1 = (Ponto){min_x, max_y}; bbox[3]->p2 = (Ponto){min_x, min_y}; bbox[3]->id = -4;
+    
+    for (int i = 0; i < 4; i++) list_insert_back(barreiras, bbox[i]);
+
+    // ========================================================================
+    // FASE 2: Criar eventos (vértices) com tipo INICIO/FIM
+    // ========================================================================
     int qtd_barreiras = list_size(barreiras);
     int qtd_eventos = qtd_barreiras * 2;
     Evento **eventos = malloc(sizeof(Evento *) * qtd_eventos);
@@ -176,117 +186,150 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras_in
     for (int i = 0; i < qtd_barreiras; i++)
     {
         Segmento *seg = (Segmento *)list_get_at(barreiras, i);
+        
         double ang1 = angulo_polar(centro, seg->p1);
         double ang2 = angulo_polar(centro, seg->p2);
+        double dist1 = distancia(centro, seg->p1);
+        double dist2 = distancia(centro, seg->p2);
 
+        // Normaliza para [0, 2PI]
         if (ang1 < 0) ang1 += 2 * M_PI;
         if (ang2 < 0) ang2 += 2 * M_PI;
 
-        bool p1_inicio = (ang1 < ang2);
+        // Determina qual ponto é INICIO e qual é FIM
+        bool p1_inicio = (ang1 < ang2) || (fabs(ang1 - ang2) < EPSILON && dist1 < dist2);
 
         eventos[k] = malloc(sizeof(Evento));
         eventos[k]->angulo = ang1;
+        eventos[k]->distancia = dist1;
         eventos[k]->seg = seg;
         eventos[k]->p = seg->p1;
-        eventos[k]->tipo = p1_inicio ? 0 : 1;
+        eventos[k]->tipo = p1_inicio ? EVENTO_INICIO : EVENTO_FIM;
         k++;
 
         eventos[k] = malloc(sizeof(Evento));
         eventos[k]->angulo = ang2;
+        eventos[k]->distancia = dist2;
         eventos[k]->seg = seg;
         eventos[k]->p = seg->p2;
-        eventos[k]->tipo = p1_inicio ? 1 : 0;
+        eventos[k]->tipo = p1_inicio ? EVENTO_FIM : EVENTO_INICIO;
         k++;
     }
 
+    // Ordena eventos
     sort(eventos, qtd_eventos, sizeof(Evento *), comparar_eventos, g_sort_method, 10);
 
-    BinaryTree ativos = tree_create(comparar_segmentos_ativos);
-    Segmento *biombo_atual = NULL;
+    // ========================================================================
+    // FASE 3: Inicializa árvore com segmentos que cruzam ângulo 0
+    // ========================================================================
+    ArvoreSegmentos ativos = arvore_seg_criar(centro);
+    
+    arvore_seg_definir_angulo(ativos, 0.0);
+    for (int i = 0; i < qtd_barreiras; i++)
+    {
+        Segmento *seg = (Segmento *)list_get_at(barreiras, i);
+        if (segmento_cruza_angulo_zero(centro, seg))
+        {
+            arvore_seg_inserir(ativos, seg);
+        }
+    }
 
-    if (qtd_eventos > 0) g_angulo = eventos[0]->angulo;
+    // Ponto inicial do polígono (interseção do raio 0 com biombo inicial)
+    Segmento *biombo_atual = arvore_seg_obter_primeiro(ativos);
+    Ponto *ultimo_ponto = NULL;
+    
+    if (biombo_atual != NULL)
+    {
+        Ponto inter = interseccao_raio_segmento(centro, 0.0, *biombo_atual);
+        if (!isnan(inter.x))
+        {
+            ultimo_ponto = inserir_vertice_unico(vertices_poly, inter, ultimo_ponto);
+        }
+    }
 
+    // ========================================================================
+    // FASE 4: Loop principal de varredura
+    // ========================================================================
     for (int i = 0; i < qtd_eventos; i++)
     {
         Evento *e = eventos[i];
-        g_angulo = e->angulo;
+        arvore_seg_definir_angulo(ativos, e->angulo);
 
-        if (e->tipo == 0) // INICIO
+        if (e->tipo == EVENTO_INICIO)
         {
-            tree_insert(ativos, e->seg);
-            Segmento *mais_prox = (Segmento *)tree_get_min(ativos);
+            arvore_seg_inserir(ativos, e->seg);
+            Segmento *mais_prox = arvore_seg_obter_primeiro(ativos);
 
-            if (mais_prox == e->seg)
+            // Se o segmento inserido virou o mais próximo
+            if (mais_prox == e->seg && biombo_atual != e->seg)
             {
-                if (biombo_atual && biombo_atual != e->seg)
+                // Calcula interseção com o biombo anterior
+                if (biombo_atual != NULL)
                 {
                     Ponto inter = interseccao_raio_segmento(centro, e->angulo, *biombo_atual);
-                    
-                    if (isnan(inter.x)) {
-                       // Fallback colinearidade: usar vértice do evento
-                       inter = e->p; 
-                    }
-
                     if (!isnan(inter.x))
                     {
-                        Ponto *p = malloc(sizeof(Ponto));
-                        *p = inter;
-                        list_insert_back(vertices_poly, p);
+                        ultimo_ponto = inserir_vertice_unico(vertices_poly, inter, ultimo_ponto);
                     }
                 }
-                Ponto *p = malloc(sizeof(Ponto));
-                *p = e->p;
-                list_insert_back(vertices_poly, p);
+                
+                // Adiciona o vértice do evento
+                ultimo_ponto = inserir_vertice_unico(vertices_poly, e->p, ultimo_ponto);
                 biombo_atual = e->seg;
             }
         }
-        else // FIM
+        else // EVENTO_FIM
         {
             if (e->seg == biombo_atual)
             {
-                Ponto *p = malloc(sizeof(Ponto));
-                *p = e->p;
-                list_insert_back(vertices_poly, p);
+                // Adiciona o vértice do evento
+                ultimo_ponto = inserir_vertice_unico(vertices_poly, e->p, ultimo_ponto);
 
-                tree_remove(ativos, e->seg);
+                arvore_seg_remover(ativos, e->seg);
 
-                Segmento *novo_prox = (Segmento *)tree_get_min(ativos);
-                if (novo_prox)
+                // Busca o novo biombo
+                Segmento *novo_prox = arvore_seg_obter_primeiro(ativos);
+                if (novo_prox != NULL)
                 {
                     Ponto inter = interseccao_raio_segmento(centro, e->angulo, *novo_prox);
-                    
-                    if (isnan(inter.x)) {
-                         inter = e->p;
-                    }
-
                     if (!isnan(inter.x))
                     {
-                        Ponto *pi = malloc(sizeof(Ponto));
-                        *pi = inter;
-                        list_insert_back(vertices_poly, pi);
+                        ultimo_ponto = inserir_vertice_unico(vertices_poly, inter, ultimo_ponto);
                     }
                 }
                 biombo_atual = novo_prox;
             }
             else
             {
-                tree_remove(ativos, e->seg);
+                arvore_seg_remover(ativos, e->seg);
             }
         }
     }
 
+    // ========================================================================
+    // FASE 5: Limpeza e retorno
+    // ========================================================================
     for (int i = 0; i < qtd_eventos; i++) free(eventos[i]);
     free(eventos);
-    tree_destroy(ativos, NULL);
-
-    while (!list_is_empty(barreiras)) free(list_remove_front(barreiras));
+    
+    // Libera segmentos copiados
+    while (!list_is_empty(barreiras))
+    {
+        free(list_remove_front(barreiras));
+    }
     list_destroy(barreiras);
+    
+    arvore_seg_destruir(ativos);
 
     struct PoligonoVisibilidade_st *poly = malloc(sizeof(struct PoligonoVisibilidade_st));
     poly->vertices = vertices_poly;
     poly->centro = centro;
     return (PoligonoVisibilidade)poly;
 }
+
+// ============================================================================
+// Funções de Teste de Visibilidade
+// ============================================================================
 
 bool visibilidade_ponto_atingido(PoligonoVisibilidade pol_opaco, Ponto p)
 {
@@ -305,17 +348,50 @@ bool visibilidade_ponto_atingido(PoligonoVisibilidade pol_opaco, Ponto p)
         Ponto *v1 = (Ponto *)list_get_at(pol->vertices, i);
         Ponto *v2 = (Ponto *)list_get_at(pol->vertices, (i + 1) % n);
 
-        Segmento aresta = {*v1, *v2};
+        Segmento aresta = {*v1, *v2, 0};
         
-        double d_borda = distancia_raio_segmento_robusta(pol->centro, ang, aresta);
+        double d_borda = distancia_raio_segmento(pol->centro, ang, aresta);
 
         if (!isinf(d_borda) && !isnan(d_borda))
         {
-            // Tolerância para garantir que bordas sejam pintadas
-            if (dist_p <= d_borda + 0.1)
+            // Ponto está dentro se está antes da borda
+            if (dist_p <= d_borda + 0.5)
                 return true;
         }
     }
+    return false;
+}
+
+bool visibilidade_segmento_atingido(PoligonoVisibilidade pol_opaco, Ponto p1, Ponto p2)
+{
+    if (!pol_opaco) return false;
+    struct PoligonoVisibilidade_st *pol = (struct PoligonoVisibilidade_st *)pol_opaco;
+    
+    // Teste 1: Verifica se alguma extremidade está dentro
+    if (visibilidade_ponto_atingido(pol_opaco, p1)) return true;
+    if (visibilidade_ponto_atingido(pol_opaco, p2)) return true;
+    
+    // Teste 2: Verifica ponto médio
+    Ponto pm = {(p1.x + p2.x) / 2, (p1.y + p2.y) / 2};
+    if (visibilidade_ponto_atingido(pol_opaco, pm)) return true;
+    
+    // Teste 3: Verifica se o segmento intercepta alguma aresta do polígono
+    Segmento seg = {p1, p2, 0};
+    int n = list_size(pol->vertices);
+    
+    for (int i = 0; i < n; i++)
+    {
+        Ponto *v1 = (Ponto *)list_get_at(pol->vertices, i);
+        Ponto *v2 = (Ponto *)list_get_at(pol->vertices, (i + 1) % n);
+        
+        Segmento aresta = {*v1, *v2, 0};
+        
+        if (segmentos_intersectam(seg, aresta))
+        {
+            return true;
+        }
+    }
+    
     return false;
 }
 
@@ -330,4 +406,18 @@ void visibilidade_destruir(PoligonoVisibilidade pol_opaco)
     }
     list_destroy(pol->vertices);
     free(pol);
+}
+
+// Retorna os vértices do polígono para desenho SVG
+LinkedList visibilidade_obter_vertices(PoligonoVisibilidade pol_opaco)
+{
+    if (!pol_opaco) return NULL;
+    struct PoligonoVisibilidade_st *pol = (struct PoligonoVisibilidade_st *)pol_opaco;
+    return pol->vertices;
+}
+
+Ponto visibilidade_obter_centro(PoligonoVisibilidade pol_opaco)
+{
+    struct PoligonoVisibilidade_st *pol = (struct PoligonoVisibilidade_st *)pol_opaco;
+    return pol->centro;
 }

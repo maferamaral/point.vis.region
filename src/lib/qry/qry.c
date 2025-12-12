@@ -57,10 +57,10 @@ static bool forma_foi_atingida(PoligonoVisibilidade pol, ElementoGeo* el) {
     } else if (el->tipo == LINE) {
         Ponto p1 = {line_get_x1(el->forma), line_get_y1(el->forma)};
         Ponto p2 = {line_get_x2(el->forma), line_get_y2(el->forma)};
-        if (visibilidade_ponto_atingido(pol, p1)) return true;
-        if (visibilidade_ponto_atingido(pol, p2)) return true;
-        Ponto pm = {(p1.x + p2.x)/2, (p1.y + p2.y)/2};
-        if (visibilidade_ponto_atingido(pol, pm)) return true;
+        // Usa a função específica para segmentos que verifica:
+        // 1. Extremidades dentro do polígono
+        // 2. Interseção com arestas do polígono
+        if (visibilidade_segmento_atingido(pol, p1, p2)) return true;
 
     } else if (el->tipo == TEXT) {
         double x = text_get_x(el->forma);
