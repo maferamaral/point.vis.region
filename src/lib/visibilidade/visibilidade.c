@@ -46,10 +46,12 @@ typedef struct {
     Segmento *seg;
 } Evento;
 
-// Compara pontos com tolerância
+// Compara pontos com tolerância (mais relaxada para evitar vertices duplicados vizinhos)
 static bool ponto_igual(Ponto a, Ponto b)
 {
-    return fabs(a.x - b.x) < EPSILON && fabs(a.y - b.y) < EPSILON;
+    // Tolerância maior para agrupar pontos muito próximos
+    const double TOLERANCIA_PONTO = 10.0;
+    return fabs(a.x - b.x) < TOLERANCIA_PONTO && fabs(a.y - b.y) < TOLERANCIA_PONTO;
 }
 
 // Compara eventos para ordenação
@@ -174,6 +176,71 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras_in
     bbox[3] = malloc(sizeof(Segmento)); bbox[3]->p1 = (Ponto){min_x, max_y}; bbox[3]->p2 = (Ponto){min_x, min_y}; bbox[3]->id = -4;
     
     for (int i = 0; i < 4; i++) list_insert_back(barreiras, bbox[i]);
+
+    // ========================================================================
+    // FASE 1.5: PRÉ-PROCESSAMENTO - Divisão de Segmentos no Ângulo 0
+    // Segmentos que cruzam o raio horizontal (ângulo 0) devem ser divididos
+    // para evitar inconsistências na ordenação angular
+    // ========================================================================
+    int n_barreiras = list_size(barreiras);
+    for (int i = 0; i < n_barreiras; i++)
+    {
+        Segmento *seg = (Segmento *)list_get_at(barreiras, i);
+        
+        // Cria um raio horizontal para a direita a partir do centro
+        Segmento raio_zero;
+        raio_zero.p1 = centro;
+        raio_zero.p2 = (Ponto){centro.x + 10000.0, centro.y};
+        
+        // Verifica se o segmento intercepta o raio horizontal
+        Ponto inter = interseccao_raio_segmento(centro, 0.0, *seg);
+        
+        if (!isnan(inter.x))
+        {
+            // Verifica se a interseção não está nos extremos do segmento
+            double d1 = distancia(inter, seg->p1);
+            double d2 = distancia(inter, seg->p2);
+            
+            if (d1 > EPSILON && d2 > EPSILON)
+            {
+                // Divide o segmento em dois no ponto de interseção
+                Segmento *s1 = malloc(sizeof(Segmento));
+                Segmento *s2 = malloc(sizeof(Segmento));
+                
+                s1->p1 = seg->p1;
+                s1->p2 = inter;
+                s1->id = seg->id;
+                
+                s2->p1 = inter;
+                s2->p2 = seg->p2;
+                s2->id = seg->id;
+                
+                // Adiciona os dois novos segmentos
+                list_insert_back(barreiras, s1);
+                list_insert_back(barreiras, s2);
+                
+                // Marca o segmento original para remoção (ID inválido)
+                seg->id = -9999;
+            }
+        }
+    }
+    
+    // Remove segmentos marcados para remoção
+    LinkedList barreiras_limpas = list_create();
+    while (!list_is_empty(barreiras))
+    {
+        Segmento *seg = (Segmento *)list_remove_front(barreiras);
+        if (seg->id != -9999)
+        {
+            list_insert_back(barreiras_limpas, seg);
+        }
+        else
+        {
+            free(seg);
+        }
+    }
+    list_destroy(barreiras);
+    barreiras = barreiras_limpas;
 
     // ========================================================================
     // FASE 2: Criar eventos (vértices) com tipo INICIO/FIM
