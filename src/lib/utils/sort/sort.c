@@ -1,111 +1,148 @@
-#include "sort.h"
+/* sort.c
+ *
+ * Implementação dos algoritmos de ordenação.
+ */
+
 #include <stdlib.h>
 #include <string.h>
+#include "sort.h"
 
-// Helper macros for void* arithmetic
-#define AT(base, i, size) ((char*)(base) + (i) * (size))
 
-// --- Implementation of Insertion Sort ---
-void insertionSort(void* base, size_t nmemb, size_t size, Comparator cmp) {
-    if (nmemb <= 1) return;
 
-    // Buffer temporário para armazenar o elemento pivô
-    void* temp = malloc(size);
-    if (!temp) return; // Erro de alocação
+/* ============================================================================
+ * Algoritmos Auxiliares
+ * ============================================================================ */
 
-    for (size_t i = 1; i < nmemb; i++) {
-        // Copia o elemento atual para o temp (pivô)
-        memcpy(temp, AT(base, i, size), size);
+/**
+ * Insertion Sort para pequenos arrays/subarrays.
+ */
+static void insertion_sort(char *base, size_t nmemb, size_t size, FuncaoComparacao compar)
+{
+    char *temp = (char*)malloc(size);
+    if (temp == NULL) return;
+
+    for (size_t i = 1; i < nmemb; i++)
+    {
+        memcpy(temp, base + i * size, size);
+        size_t j = i;
         
-        int j = (int)i - 1;
-
-        // Move os elementos maiores que o pivô para frente
-        while (j >= 0 && cmp(AT(base, j, size), temp) > 0) {
-            memcpy(AT(base, j + 1, size), AT(base, j, size), size);
+        while (j > 0 && compar(temp, base + (j - 1) * size) < 0)
+        {
+            memcpy(base + j * size, base + (j - 1) * size, size);
             j--;
         }
         
-        // Insere o pivô na posição correta
-        memcpy(AT(base, j + 1, size), temp, size);
+        memcpy(base + j * size, temp, size);
     }
-
+    
     free(temp);
 }
 
-// --- Internal Recursive Merge Sort ---
-static void merge_internal(void* base, size_t left, size_t mid, size_t right, size_t size, Comparator cmp, void* aux) {
+/**
+ * Função auxiliar para merge do MergeSort.
+ */
+static void merge(char *base, size_t left, size_t mid, size_t right, 
+                  size_t size, FuncaoComparacao compar, char *aux)
+{
     size_t i = left;
-    size_t j = mid + 1;
+    size_t j = mid;
     size_t k = left;
-
-    // Intercalação
-    while (i <= mid && j <= right) {
-        if (cmp(AT(base, i, size), AT(base, j, size)) <= 0) {
-            memcpy(AT(aux, k, size), AT(base, i, size), size);
+    
+    /* Copia arrays ordenados para vetor auxiliar */
+    while (i < mid && j < right)
+    {
+        if (compar(base + i * size, base + j * size) <= 0)
+        {
+            memcpy(aux + k * size, base + i * size, size);
             i++;
-        } else {
-            memcpy(AT(aux, k, size), AT(base, j, size), size);
+        }
+        else
+        {
+            memcpy(aux + k * size, base + j * size, size);
             j++;
         }
         k++;
     }
-
-    // Copia o restante da metade esquerda
-    while (i <= mid) {
-        memcpy(AT(aux, k, size), AT(base, i, size), size);
-        i++; k++;
+    
+    /* Copia restantes */
+    while (i < mid)
+    {
+        memcpy(aux + k * size, base + i * size, size);
+        i++;
+        k++;
     }
-
-    // Copia o restante da metade direita
-    while (j <= right) {
-        memcpy(AT(aux, k, size), AT(base, j, size), size);
-        j++; k++;
+    
+    while (j < right)
+    {
+        memcpy(aux + k * size, base + j * size, size);
+        j++;
+        k++;
     }
-
-    // Copia de volta do auxiliar para o base
-    for (size_t p = left; p <= right; p++) {
-        memcpy(AT(base, p, size), AT(aux, p, size), size);
-    }
+    
+    /* Copia de volta para o array original */
+    memcpy(base + left * size, aux + left * size, (right - left) * size);
 }
 
-static void mergeSortRecursive(void* base, size_t left, size_t right, size_t size, Comparator cmp, int threshold, void* aux) {
-    if (left >= right) return;
-
-    size_t n = right - left + 1;
+/**
+ * Implementação recursiva do MergeSort Híbrido.
+ */
+static void mergesort_recursivo(char *base, size_t left, size_t right, 
+                                size_t size, FuncaoComparacao compar, char *aux, int limiar)
+{
+    size_t n = right - left;
     
-    // Otimização: Insertion Sort para vetores pequenos
-    if (n <= (size_t)threshold) {
-        // InsertionSort espera nmemb e começa do base relativo
-        insertionSort(AT(base, left, size), n, size, cmp);
+    /* Caso base: array pequeno, usa Insertion Sort */
+    if ((int)n <= limiar)
+    {
+        insertion_sort(base + left * size, n, size, compar);
         return;
     }
-
-    size_t mid = left + (right - left) / 2;
-    mergeSortRecursive(base, left, mid, size, cmp, threshold, aux);
-    mergeSortRecursive(base, mid + 1, right, size, cmp, threshold, aux);
-    merge_internal(base, left, mid, right, size, cmp, aux);
+    
+    size_t mid = left + n / 2;
+    
+    mergesort_recursivo(base, left, mid, size, compar, aux, limiar);
+    mergesort_recursivo(base, mid, right, size, compar, aux, limiar);
+    
+    merge(base, left, mid, right, size, compar, aux);
 }
 
-
-// --- Wrapper for Merge Sort ---
-void mergeSort(void* base, size_t nmemb, size_t size, Comparator cmp, int threshold) {
-    if (nmemb <= 1) return;
-
-    // Aloca vetor auxiliar uma única vez
-    void* aux = malloc(nmemb * size);
-    if (!aux) return; // Erro fatal
-
-    mergeSortRecursive(base, 0, nmemb - 1, size, cmp, threshold, aux);
-
+/**
+ * Wrapper para o MergeSort.
+ */
+static void mergesort_hibrido(void *base, size_t nmemb, size_t size, FuncaoComparacao compar, int limiar)
+{
+    if (nmemb < 2) return;
+    
+    /* Aloca array auxiliar uma única vez */
+    char *aux = (char*)malloc(nmemb * size);
+    if (aux == NULL)
+    {
+        /* Fallback para qsort em caso de falta de memória ??
+           Ou tenta fazer insertion sort in-place (muito lento para arrays grandes).
+           Vamos assumir qsort como fallback seguro. */
+        qsort(base, nmemb, size, compar);
+        return;
+    }
+    
+    mergesort_recursivo((char*)base, 0, nmemb, size, compar, aux, limiar);
+    
     free(aux);
 }
 
-// --- Main Sort Function ---
-void sort(void* base, size_t nmemb, size_t size, Comparator cmp, char type, int insertion_threshold) {
-    if (type == 'm') {
-        mergeSort(base, nmemb, size, cmp, insertion_threshold);
-    } else {
-        // Default to qsort ('q')
-        qsort(base, nmemb, size, cmp);
+/* ============================================================================
+ * Interface Pública
+ * ============================================================================ */
+
+void ordenar(void *base, size_t nmemb, size_t size, 
+             FuncaoComparacao compar, AlgoritmoOrdenacao alg, int limiar)
+{
+    if (alg == ALG_MERGESORT)
+    {
+        mergesort_hibrido(base, nmemb, size, compar, limiar);
+    }
+    else
+    {
+        /* Default: QSort padrão da libc */
+        qsort(base, nmemb, size, compar);
     }
 }

@@ -6,7 +6,8 @@
 #include "../visibilidade/visibilidade.h"
 #include "../geo/geo.h"
 #include "../svg/svg.h"
-#include "../geometria/geometria.h"
+#include "../geometria/ponto/ponto.h"
+#include "../geometria/segmento/segmento.h"
 #include "../utils/lista/lista.h"
 #include "../formas/circulo/circulo.h"
 #include "../formas/retangulo/retangulo.h"
@@ -41,50 +42,63 @@ static bool forma_foi_atingida(PoligonoVisibilidade pol, ElementoGeo* el) {
         double w = retangulo_get_largura(el->forma);
         double h = retangulo_get_altura(el->forma);
         
-        Ponto p1 = {x, y};
-        Ponto p2 = {x + w, y};
-        Ponto p3 = {x + w, y + h};
-        Ponto p4 = {x, y + h};
+        Ponto p1 = criar_ponto(x, y);
+        Ponto p2 = criar_ponto(x + w, y);
+        Ponto p3 = criar_ponto(x + w, y + h);
+        Ponto p4 = criar_ponto(x, y + h);
         
-        if (visibilidade_ponto_atingido(pol, p1)) return true;
-        if (visibilidade_ponto_atingido(pol, p2)) return true;
-        if (visibilidade_ponto_atingido(pol, p3)) return true;
-        if (visibilidade_ponto_atingido(pol, p4)) return true;
+        bool hit = false;
+        if (visibilidade_ponto_atingido(pol, p1)) hit = true;
+        if (!hit && visibilidade_ponto_atingido(pol, p2)) hit = true;
+        if (!hit && visibilidade_ponto_atingido(pol, p3)) hit = true;
+        if (!hit && visibilidade_ponto_atingido(pol, p4)) hit = true;
         
-        Ponto centro = {x + w/2, y + h/2};
-        if (visibilidade_ponto_atingido(pol, centro)) return true;
+        destruir_ponto(p1); destruir_ponto(p2); destruir_ponto(p3); destruir_ponto(p4);
+        
+        if (hit) return true;
+
+        Ponto centro = criar_ponto(x + w/2, y + h/2);
+        if (visibilidade_ponto_atingido(pol, centro)) hit = true;
+        destruir_ponto(centro);
+        if (hit) return true;
 
     } else if (el->tipo == LINE) {
-        Ponto p1 = {line_get_x1(el->forma), line_get_y1(el->forma)};
-        Ponto p2 = {line_get_x2(el->forma), line_get_y2(el->forma)};
-        // Usa a função específica para segmentos que verifica:
-        // 1. Extremidades dentro do polígono
-        // 2. Interseção com arestas do polígono
-        if (visibilidade_segmento_atingido(pol, p1, p2)) return true;
+        Ponto p1 = criar_ponto(line_get_x1(el->forma), line_get_y1(el->forma));
+        Ponto p2 = criar_ponto(line_get_x2(el->forma), line_get_y2(el->forma));
+        bool hit = visibilidade_segmento_atingido(pol, p1, p2);
+        destruir_ponto(p1); destruir_ponto(p2);
+        if (hit) return true;
 
     } else if (el->tipo == TEXT) {
         double x = text_get_x(el->forma);
         double y = text_get_y(el->forma);
-        Ponto p1 = {x, y};
-        if (visibilidade_ponto_atingido(pol, p1)) return true;
+        Ponto p1 = criar_ponto(x, y);
+        bool hit = visibilidade_ponto_atingido(pol, p1);
+        destruir_ponto(p1);
+        if (hit) return true;
 
     } else if (el->tipo == CIRCLE) {
         double cx = circulo_get_x(el->forma);
         double cy = circulo_get_y(el->forma);
         double r = circulo_get_raio(el->forma);
         
-        Ponto c = {cx, cy};
-        if (visibilidade_ponto_atingido(pol, c)) return true;
+        Ponto c = criar_ponto(cx, cy);
+        bool hit = visibilidade_ponto_atingido(pol, c);
+        destruir_ponto(c);
+        if (hit) return true;
         
-        Ponto p1 = {cx + r, cy};
-        Ponto p2 = {cx - r, cy};
-        Ponto p3 = {cx, cy + r};
-        Ponto p4 = {cx, cy - r};
+        Ponto p1 = criar_ponto(cx + r, cy);
+        Ponto p2 = criar_ponto(cx - r, cy);
+        Ponto p3 = criar_ponto(cx, cy + r);
+        Ponto p4 = criar_ponto(cx, cy - r);
         
-        if (visibilidade_ponto_atingido(pol, p1)) return true;
-        if (visibilidade_ponto_atingido(pol, p2)) return true;
-        if (visibilidade_ponto_atingido(pol, p3)) return true;
-        if (visibilidade_ponto_atingido(pol, p4)) return true;
+        if (visibilidade_ponto_atingido(pol, p1)) hit = true;
+        if (!hit && visibilidade_ponto_atingido(pol, p2)) hit = true;
+        if (!hit && visibilidade_ponto_atingido(pol, p3)) hit = true;
+        if (!hit && visibilidade_ponto_atingido(pol, p4)) hit = true;
+        
+        destruir_ponto(p1); destruir_ponto(p2); destruir_ponto(p3); destruir_ponto(p4);
+        if (hit) return true;
     }
     
     return false;
@@ -285,7 +299,7 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
         }
 
         if (is_bomb) {
-            Ponto bomba = {x, y};
+            Ponto bomba = criar_ponto(x, y);
 
             LinkedList barreiras = geo_obter_todas_barreiras(cidade);
             LinkedList biombo = geo_gerar_biombo(cidade, bomba);
@@ -339,21 +353,28 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                 sprintf(snapshotPath, "%s/%s-%s-%s.svg", outPath, geoName, qryNoExt, sfx);
                 FILE *fsnap = fopen(snapshotPath, "w");
                 if (fsnap) {
+                    geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
                     svg_iniciar(fsnap, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
                     svg_desenhar_cidade(fsnap, cidade);
                     svg_desenhar_poligono(fsnap, pol, "yellow", 0.5);
                     svg_finalizar(fsnap);
                     fclose(fsnap);
                 }
-                visibilidade_destruir(pol);
+            visibilidade_destruir(pol);
+            destruir_ponto(bomba); // Don't forget to free bomb point
             }
-            while(!list_is_empty(barreiras)) free(list_remove_front(barreiras));
+            while(!list_is_empty(barreiras)) {
+                // geo_obter_todas_barreiras returns new segments, we must free them
+                // But list_remove_front returns void* (Segmento).
+                destruir_segmento((Segmento)list_remove_front(barreiras));
+            }
             list_destroy(barreiras);
         }
     }
 
     // Draw final SVG with city in current state (after all commands) and all visibility polygons
     if (fsvg_final) {
+        geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
         svg_iniciar(fsvg_final, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
         svg_desenhar_cidade(fsvg_final, cidade);
         

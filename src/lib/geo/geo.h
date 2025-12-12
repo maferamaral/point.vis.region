@@ -2,7 +2,8 @@
 #define GEO_H
 
 #include <stdio.h>
-#include "../geometria/geometria.h"
+#include "../geometria/ponto/ponto.h"
+#include "../geometria/segmento/segmento.h"
 
 typedef void* LinkedList;
 typedef void *Geo;
