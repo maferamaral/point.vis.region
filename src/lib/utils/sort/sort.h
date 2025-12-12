@@ -1,28 +1,34 @@
+/* sort.h
+ *
+ * Módulo de ordenação genérica.
+ * Suporta QSort e MergeSort Híbrido (Merge + Insertion).
+ */
+
 #ifndef SORT_H
 #define SORT_H
 
 #include <stddef.h>
 
-// Definição do tipo ponteiro de função para comparação.
-// Deve retornar:
-// < 0 se a < b
-//   0 se a == b
-// > 0 se a > b
-typedef int (*Comparator)(const void* a, const void* b);
+/* Tipos de algoritmos de ordenação */
+typedef enum {
+    ALG_QSORT,
+    ALG_MERGESORT
+} AlgoritmoOrdenacao;
+
+/* Tipo para função de comparação (estilo qsort) */
+typedef int (*FuncaoComparacao)(const void*, const void*);
 
 /**
- * Interface unificada para ordenação.
- * @param base Ponteiro para o início do vetor.
- * @param nmemb Número de elementos.
- * @param size Tamanho de cada elemento em bytes.
- * @param cmp Função de comparação.
- * @param type Tipo de algoritmo: 'q' (QSort) ou 'm' (MergeSort).
- * @param insertion_threshold Limite para ativar InsertionSort (usado apenas no Merge).
+ * Ordena um array usando o algoritmo especificado.
+ * 
+ * @param base Ponteiro para o início do array
+ * @param nmemb Número de elementos
+ * @param size Tamanho de cada elemento
+ * @param compar Função de comparação
+ * @param alg Algoritmo a ser utilizado (ALG_QSORT ou ALG_MERGESORT)
+ * @param limiar Limiar para Insertion Sort (apenas para ALG_MERGESORT)
  */
-void sort(void* base, size_t nmemb, size_t size, Comparator cmp, char type, int insertion_threshold);
+void ordenar(void *base, size_t nmemb, size_t size, 
+             FuncaoComparacao compar, AlgoritmoOrdenacao alg, int limiar);
 
-// Funções auxiliares (expostas para testes unitários conforme solicitado)
-void insertionSort(void* base, size_t nmemb, size_t size, Comparator cmp);
-void mergeSort(void* base, size_t nmemb, size_t size, Comparator cmp, int threshold);
-
-#endif
+#endif /* SORT_H */

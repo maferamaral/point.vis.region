@@ -10,7 +10,8 @@
 #include "../formas/texto/texto.h"
 #include "../formas/formas.h"
 #include "../utils/lista/lista.h"
-#include "../geometria/geometria.h"
+#include "../geometria/ponto/ponto.h"
+#include "../geometria/segmento/segmento.h"
 
 typedef struct {
     TipoForma tipo;
@@ -150,10 +151,9 @@ LinkedList geo_obter_todas_barreiras(Geo geo) {
                 double x2 = line_get_x2(el->forma);
                 double y2 = line_get_y2(el->forma);
                 
-                Segmento *s = malloc(sizeof(Segmento));
-                *s = segmento_criar(ponto_criar(x1, y1), ponto_criar(x2, y2));
-                s->id = line_id; 
-                list_insert_back(segmentos, s);
+                // Correct usage with new API:
+                Segmento seg = criar_segmento(line_id, line_id, x1, y1, x2, y2, "black");
+                list_insert_back(segmentos, seg);
             }
         }
         // Rectangles are NOT barriers - they become barriers only through command 'a'
@@ -169,18 +169,21 @@ LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba) {
     double min_x = DBL_MAX, min_y = DBL_MAX;
     double max_x = -DBL_MAX, max_y = -DBL_MAX;
 
+    double cx = get_ponto_x(centro_bomba);
+    double cy = get_ponto_y(centro_bomba);
+
     if (list_is_empty(g->formas)) {
-        min_x = centro_bomba.x; max_x = centro_bomba.x;
-        min_y = centro_bomba.y; max_y = centro_bomba.y;
+        min_x = cx; max_x = cx;
+        min_y = cy; max_y = cy;
     } else {
         geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
     }
 
     // Expande para incluir a bomba se ela estiver fora
-    if (centro_bomba.x < min_x) min_x = centro_bomba.x;
-    if (centro_bomba.x > max_x) max_x = centro_bomba.x;
-    if (centro_bomba.y < min_y) min_y = centro_bomba.y;
-    if (centro_bomba.y > max_y) max_y = centro_bomba.y;
+    if (cx < min_x) min_x = cx;
+    if (cx > max_x) max_x = cx;
+    if (cy < min_y) min_y = cy;
+    if (cy > max_y) max_y = cy;
 
     double largura = max_x - min_x;
     double altura = max_y - min_y;
@@ -191,15 +194,10 @@ LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba) {
     min_x -= dx; min_y -= dy;
     max_x += dx; max_y += dy;
 
-    Ponto p1 = ponto_criar(min_x, min_y);
-    Ponto p2 = ponto_criar(max_x, min_y);
-    Ponto p3 = ponto_criar(max_x, max_y);
-    Ponto p4 = ponto_criar(min_x, max_y);
-
-    Segmento *s1 = malloc(sizeof(Segmento)); *s1 = segmento_criar(p1, p2); s1->id = -1;
-    Segmento *s2 = malloc(sizeof(Segmento)); *s2 = segmento_criar(p2, p3); s2->id = -1;
-    Segmento *s3 = malloc(sizeof(Segmento)); *s3 = segmento_criar(p3, p4); s3->id = -1;
-    Segmento *s4 = malloc(sizeof(Segmento)); *s4 = segmento_criar(p4, p1); s4->id = -1;
+    Segmento s1 = criar_segmento(-1, -1, min_x, min_y, max_x, min_y, "none");
+    Segmento s2 = criar_segmento(-1, -1, max_x, min_y, max_x, max_y, "none");
+    Segmento s3 = criar_segmento(-1, -1, max_x, max_y, min_x, max_y, "none");
+    Segmento s4 = criar_segmento(-1, -1, min_x, max_y, min_x, min_y, "none");
 
     list_insert_back(biombo, s1);
     list_insert_back(biombo, s2);

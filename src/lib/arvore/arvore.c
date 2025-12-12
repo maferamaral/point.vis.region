@@ -1,16 +1,17 @@
-/*
- * arvore_seg.c
- * 
+/* arvore.c
+ *
  * Implementação da Árvore de Segmentos Ativos
- * Usa uma árvore binária de busca com estado interno (origem e ângulo).
+ * Usa uma árvore binária de busca simples.
+ * 
+ * A ordenação é dinâmica: segmentos são comparados pela distância
+ * ao ponto de vista no ângulo atual da varredura.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "arvore_seg.h"
-
-#define EPSILON 1e-9
+#include "arvore.h"
+#include "../geometria/calculos/calculos.h"
 
 /* ============================================================================
  * Estruturas Internas
@@ -19,7 +20,7 @@
 /* Nó da árvore */
 typedef struct no_arvore
 {
-    Segmento *segmento;
+    Segmento segmento;
     struct no_arvore *esquerda;
     struct no_arvore *direita;
     struct no_arvore *pai;
@@ -38,7 +39,10 @@ typedef struct arvore_internal
  * Funções Auxiliares
  * ============================================================================ */
 
-static NoArvore* criar_no(Segmento *seg)
+/**
+ * Cria um novo nó.
+ */
+static NoArvore* criar_no(Segmento seg)
 {
     NoArvore *no = (NoArvore*)malloc(sizeof(NoArvore));
     if (no == NULL) return NULL;
@@ -55,26 +59,16 @@ static NoArvore* criar_no(Segmento *seg)
  * Compara dois segmentos pela distância no ângulo atual.
  * @return < 0 se seg1 mais perto, > 0 se seg2 mais perto
  */
-static int comparar_segmentos(ArvoreInternal *arv, Segmento *seg1, Segmento *seg2)
+static int comparar_segmentos(ArvoreInternal *arv, Segmento seg1, Segmento seg2)
 {
     if (seg1 == seg2) return 0;
     
-    double d1 = distancia_raio_segmento(arv->origem, arv->angulo, *seg1);
-    double d2 = distancia_raio_segmento(arv->origem, arv->angulo, *seg2);
-    
-    // Fallback para distâncias inválidas
-    if (isinf(d1) || isnan(d1)) d1 = 1e18;
-    if (isinf(d2) || isnan(d2)) d2 = 1e18;
-    
-    if (fabs(d1 - d2) > EPSILON)
-    {
-        return (d1 < d2) ? -1 : 1;
-    }
-    
-    // Desempate por endereço de memória
-    return (seg1 < seg2) ? -1 : 1;
+    return comparar_segmentos_raio(arv->origem, arv->angulo, seg1, seg2);
 }
 
+/**
+ * Encontra o nó com menor valor (mais à esquerda).
+ */
 static NoArvore* encontrar_minimo(NoArvore *no)
 {
     if (no == NULL) return NULL;
@@ -86,6 +80,34 @@ static NoArvore* encontrar_minimo(NoArvore *no)
     return no;
 }
 
+/**
+ * Encontra o nó sucessor (próximo na ordem).
+ */
+static NoArvore* encontrar_sucessor(NoArvore *no)
+{
+    if (no == NULL) return NULL;
+    
+    /* Se tem filho direito, é o mínimo do filho direito */
+    if (no->direita != NULL)
+    {
+        return encontrar_minimo(no->direita);
+    }
+    
+    /* Senão, sobe até encontrar onde viemos da esquerda */
+    NoArvore *pai = no->pai;
+    while (pai != NULL && no == pai->direita)
+    {
+        no = pai;
+        pai = pai->pai;
+    }
+    return pai;
+}
+
+
+
+/**
+ * Transplanta uma subárvore (usada na remoção).
+ */
 static void transplantar(ArvoreInternal *arv, NoArvore *u, NoArvore *v)
 {
     if (u->pai == NULL)
@@ -107,6 +129,9 @@ static void transplantar(ArvoreInternal *arv, NoArvore *u, NoArvore *v)
     }
 }
 
+/**
+ * Destroi recursivamente os nós da árvore.
+ */
 static void destruir_nos(NoArvore *no)
 {
     if (no == NULL) return;
@@ -120,11 +145,14 @@ static void destruir_nos(NoArvore *no)
  * Implementação das Funções Públicas
  * ============================================================================ */
 
-ArvoreSegmentos arvore_seg_criar(Ponto origem)
+ArvoreSegmentos arvore_criar(Ponto origem)
 {
+    if (origem == NULL) return NULL;
+    
     ArvoreInternal *arv = (ArvoreInternal*)malloc(sizeof(ArvoreInternal));
     if (arv == NULL)
     {
+        fprintf(stderr, "Erro: falha ao alocar árvore de segmentos.\n");
         return NULL;
     }
     
@@ -136,7 +164,7 @@ ArvoreSegmentos arvore_seg_criar(Ponto origem)
     return (ArvoreSegmentos)arv;
 }
 
-void arvore_seg_destruir(ArvoreSegmentos arvore)
+void arvore_destruir(ArvoreSegmentos arvore)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     if (arv == NULL) return;
@@ -145,7 +173,7 @@ void arvore_seg_destruir(ArvoreSegmentos arvore)
     free(arv);
 }
 
-void arvore_seg_definir_angulo(ArvoreSegmentos arvore, double angulo)
+void arvore_definir_angulo(ArvoreSegmentos arvore, double angulo)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     if (arv != NULL)
@@ -154,7 +182,7 @@ void arvore_seg_definir_angulo(ArvoreSegmentos arvore, double angulo)
     }
 }
 
-int arvore_seg_inserir(ArvoreSegmentos arvore, Segmento *seg)
+int arvore_inserir(ArvoreSegmentos arvore, Segmento seg)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     if (arv == NULL || seg == NULL) return 0;
@@ -200,7 +228,7 @@ int arvore_seg_inserir(ArvoreSegmentos arvore, Segmento *seg)
     return 1;
 }
 
-int arvore_seg_remover(ArvoreSegmentos arvore, Segmento *seg)
+int arvore_remover(ArvoreSegmentos arvore, Segmento seg)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     if (arv == NULL || seg == NULL) return 0;
@@ -261,7 +289,7 @@ int arvore_seg_remover(ArvoreSegmentos arvore, Segmento *seg)
     return 1;
 }
 
-Segmento* arvore_seg_obter_primeiro(ArvoreSegmentos arvore)
+Segmento arvore_obter_primeiro(ArvoreSegmentos arvore)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     if (arv == NULL || arv->raiz == NULL) return NULL;
@@ -270,13 +298,48 @@ Segmento* arvore_seg_obter_primeiro(ArvoreSegmentos arvore)
     return minimo ? minimo->segmento : NULL;
 }
 
-int arvore_seg_vazia(ArvoreSegmentos arvore)
+Segmento arvore_obter_proximo(ArvoreSegmentos arvore, Segmento seg)
+{
+    ArvoreInternal *arv = (ArvoreInternal*)arvore;
+    if (arv == NULL || seg == NULL) return NULL;
+    
+    /* Busca linear para encontrar o nó */
+    NoArvore *no = NULL;
+    NoArvore *stack[1000];
+    int stack_top = 0;
+    
+    if (arv->raiz != NULL)
+    {
+        stack[stack_top++] = arv->raiz;
+    }
+    
+    while (stack_top > 0)
+    {
+        NoArvore *atual = stack[--stack_top];
+        
+        if (atual->segmento == seg)
+        {
+            no = atual;
+            break;
+        }
+        
+        if (atual->direita != NULL) stack[stack_top++] = atual->direita;
+        if (atual->esquerda != NULL) stack[stack_top++] = atual->esquerda;
+    }
+    
+    if (no == NULL) return NULL;
+    
+    NoArvore *sucessor = encontrar_sucessor(no);
+    return sucessor ? sucessor->segmento : NULL;
+}
+
+int arvore_vazia(ArvoreSegmentos arvore)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     return (arv == NULL || arv->raiz == NULL);
 }
 
-int arvore_seg_tamanho(ArvoreSegmentos arvore)
+int arvore_tamanho(ArvoreSegmentos arvore)
 {
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     return arv ? arv->tamanho : 0;
