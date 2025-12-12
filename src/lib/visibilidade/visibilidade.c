@@ -65,8 +65,8 @@ static double distancia_raio_segmento_robusta(Ponto origem, double angulo, Segme
         
         double tol = 1e-4;
         
+        // Se ambos alinhados (colinear radial), retorna o mais próximo
         if (diff1 < tol && diff2 < tol) {
-             // Ambos alinhados: retorna o mais próximo
              return min_d(distancia(origem, seg.p1), distancia(origem, seg.p2));
         }
         if (diff1 < tol) return distancia(origem, seg.p1);
@@ -88,6 +88,7 @@ int comparar_segmentos_ativos(const void *a, const void *b)
     double d2 = distancia_raio_segmento_robusta(g_centro, g_angulo, *s2);
 
     if (fabs(d1 - d2) < EPSILON) {
+        // Desempate estável por endereço
         return (s1 < s2) ? -1 : 1;
     }
     return (d1 < d2) ? -1 : 1;
@@ -111,7 +112,7 @@ int comparar_eventos(const void *a, const void *b)
 
     if (e1->tipo != e2->tipo)
     {
-        return (e1->tipo == 0) ? -1 : 1;
+        return (e1->tipo == 0) ? -1 : 1; // INICIO antes de FIM
     }
 
     double d1 = distancia(g_centro, e1->p);
@@ -221,15 +222,9 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras_in
                 {
                     Ponto inter = interseccao_raio_segmento(centro, e->angulo, *biombo_atual);
                     
-                    // Fallback para colinearidade: Se não tem intersecção matemática,
-                    // usa o próprio ponto do evento ou vértice do biombo
                     if (isnan(inter.x)) {
-                       // Se o raio é colinear ao biombo_atual, a visibilidade muda no ponto mais próximo
-                       // Assumimos que o ponto do evento 'e->p' é o limite confiável
+                       // Fallback colinearidade: usar vértice do evento
                        inter = e->p; 
-                       // Mas cuidado: e->p é do NOVO segmento. Precisamos fechar o VELHO.
-                       // Se biombo_atual é colinear, ele termina em algum lugar.
-                       // Simplificação visual: fechar no e->p funciona para sweep contínuo
                     }
 
                     if (!isnan(inter.x))
@@ -260,12 +255,7 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras_in
                 {
                     Ponto inter = interseccao_raio_segmento(centro, e->angulo, *novo_prox);
                     
-                    // Fallback colinearidade
                     if (isnan(inter.x)) {
-                         // Se o novo segmento é colinear, a luz bate no começo dele.
-                         // Como estamos varrendo, e novo_prox é "ativo", ele deve começar "aqui" ou antes.
-                         // Uma boa aproximação é a distância do evento, mas idealmente é a projeção.
-                         // Vamos usar e->p para fechar o polígono sem buracos.
                          inter = e->p;
                     }
 
@@ -317,12 +307,11 @@ bool visibilidade_ponto_atingido(PoligonoVisibilidade pol_opaco, Ponto p)
 
         Segmento aresta = {*v1, *v2};
         
-        // Uso da versão robusta também aqui para evitar falsos negativos na borda
         double d_borda = distancia_raio_segmento_robusta(pol->centro, ang, aresta);
 
         if (!isinf(d_borda) && !isnan(d_borda))
         {
-            // Tolerância visual aumentada para garantir que bordas sejam pintadas
+            // Tolerância para garantir que bordas sejam pintadas
             if (dist_p <= d_borda + 0.1)
                 return true;
         }

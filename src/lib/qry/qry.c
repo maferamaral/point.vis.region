@@ -117,14 +117,13 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
     geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
     double margin = 100.0; 
     
-    if(fsvg_final) {
-        svg_iniciar(fsvg_final, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
-        svg_desenhar_cidade(fsvg_final, cidade);
-    }
+    // Store visibility polygons to draw at the end (after all commands are processed)
+    LinkedList visibility_polygons = list_create();
 
     if (!fqry) {
         if(ftxt) fclose(ftxt);
         if(fsvg_final) fclose(fsvg_final);
+        list_destroy(visibility_polygons);
         return;
     }
 
@@ -320,7 +319,7 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                     else if (strcmp(cmd, "cln") == 0) {
                         fprintf(ftxt, "\t%d %s (clone do %d %s)\n", 
                             id + 10000, obter_tipo_str(el->tipo), id, obter_tipo_str(el->tipo));
-                        geo_clonar_forma(cidade, id);
+                        geo_clonar_forma(cidade, id, dx, dy);
                     }
                 }
             }
@@ -333,7 +332,8 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
             list_destroy(to_remove_ids);
 
             if (strcmp(sfx, "-") == 0) {
-                if (fsvg_final) svg_desenhar_poligono(fsvg_final, pol, "yellow", 0.5);
+                // Store the polygon to draw at the end (after city is drawn with final state)
+                list_insert_back(visibility_polygons, pol);
             } else {
                 char snapshotPath[512];
                 sprintf(snapshotPath, "%s/%s-%s-%s.svg", outPath, geoName, qryNoExt, sfx);
@@ -345,18 +345,30 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                     svg_finalizar(fsnap);
                     fclose(fsnap);
                 }
+                visibilidade_destruir(pol);
             }
-
-            visibilidade_destruir(pol);
             while(!list_is_empty(barreiras)) free(list_remove_front(barreiras));
             list_destroy(barreiras);
         }
     }
 
+    // Draw final SVG with city in current state (after all commands) and all visibility polygons
     if (fsvg_final) {
+        svg_iniciar(fsvg_final, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
+        svg_desenhar_cidade(fsvg_final, cidade);
+        
+        // Draw all stored visibility polygons
+        while(!list_is_empty(visibility_polygons)) {
+            PoligonoVisibilidade pol = (PoligonoVisibilidade)list_remove_front(visibility_polygons);
+            svg_desenhar_poligono(fsvg_final, pol, "yellow", 0.5);
+            visibilidade_destruir(pol);
+        }
+        
         svg_finalizar(fsvg_final);
         fclose(fsvg_final);
     }
+    
+    list_destroy(visibility_polygons);
     if (ftxt) fclose(ftxt);
     if (fqry) fclose(fqry);
 }

@@ -17,6 +17,6 @@ void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, 
 void geo_destruir(Geo geo);
 void geo_remover_forma(Geo geo, int id);
 void geo_alterar_cor(Geo geo, int id, const char *cor);
-void geo_clonar_forma(Geo geo, int id);
+void geo_clonar_forma(Geo geo, int id, double dx, double dy);
 
 #endif

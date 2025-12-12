@@ -98,20 +98,20 @@ void geo_escrever_svg(Geo geo, FILE *svg) {
         
         if (el->tipo == CIRCLE) {
             void *c = el->forma;
-            fprintf(svg, "<circle cx=\"%.2f\" cy=\"%.2f\" r=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" />\n",
+            fprintf(svg, "<circle cx=\"%.2f\" cy=\"%.2f\" r=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" fill-opacity=\"0.6\" stroke-opacity=\"0.6\" />\n",
                 circulo_get_x(c), circulo_get_y(c), circulo_get_raio(c), 
                 circulo_get_cor_borda(c), circulo_get_cor_preenchimento(c));
         }
         else if (el->tipo == RECTANGLE) {
             void *r = el->forma;
-            fprintf(svg, "<rect x=\"%.2f\" y=\"%.2f\" width=\"%.2f\" height=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" />\n",
+            fprintf(svg, "<rect x=\"%.2f\" y=\"%.2f\" width=\"%.2f\" height=\"%.2f\" stroke=\"%s\" fill=\"%s\" stroke-width=\"1\" fill-opacity=\"0.6\" stroke-opacity=\"0.6\" />\n",
                 retangulo_get_x(r), retangulo_get_y(r), 
                 retangulo_get_largura(r), retangulo_get_altura(r),
                 retangulo_get_cor_borda(r), retangulo_get_cor_preenchimento(r));
         }
         else if (el->tipo == LINE) {
             void *l = el->forma;
-            fprintf(svg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"%s\" stroke-width=\"1\" />\n",
+            fprintf(svg, "<line x1=\"%.2f\" y1=\"%.2f\" x2=\"%.2f\" y2=\"%.2f\" stroke=\"%s\" stroke-width=\"1\" stroke-opacity=\"0.6\" />\n",
                 line_get_x1(l), line_get_y1(l), line_get_x2(l), line_get_y2(l), line_get_color(l));
         }
         else if (el->tipo == TEXT) {
@@ -121,7 +121,7 @@ void geo_escrever_svg(Geo geo, FILE *svg) {
             if (anchor == 'm') svg_anchor = "middle";
             if (anchor == 'e' || anchor == 'f') svg_anchor = "end";
 
-            fprintf(svg, "<text x=\"%.2f\" y=\"%.2f\" stroke=\"%s\" fill=\"%s\" text-anchor=\"%s\">%s</text>\n",
+            fprintf(svg, "<text x=\"%.2f\" y=\"%.2f\" stroke=\"%s\" fill=\"%s\" text-anchor=\"%s\" fill-opacity=\"0.6\" stroke-opacity=\"0.6\">%s</text>\n",
                 text_get_x(t), text_get_y(t), text_get_border_color(t), 
                 text_get_fill_color(t), svg_anchor, text_get_text(t));
         }
@@ -140,37 +140,24 @@ LinkedList geo_obter_todas_barreiras(Geo geo) {
     for (int i = 0; i < n; i++) {
         ElementoGeo *el = (ElementoGeo *)list_get_at(g->formas, i);
         
+        // Only include lines that are anteparos (those created by command 'a')
+        // Anteparos have IDs >= 5000 by convention (set in qry.c)
         if (el->tipo == LINE) {
-            double x1 = line_get_x1(el->forma);
-            double y1 = line_get_y1(el->forma);
-            double x2 = line_get_x2(el->forma);
-            double y2 = line_get_y2(el->forma);
-            
-            Segmento *s = malloc(sizeof(Segmento));
-            *s = segmento_criar(ponto_criar(x1, y1), ponto_criar(x2, y2));
-            list_insert_back(segmentos, s);
+            int line_id = line_get_id(el->forma);
+            if (line_id >= 5000) {  // Only anteparos
+                double x1 = line_get_x1(el->forma);
+                double y1 = line_get_y1(el->forma);
+                double x2 = line_get_x2(el->forma);
+                double y2 = line_get_y2(el->forma);
+                
+                Segmento *s = malloc(sizeof(Segmento));
+                *s = segmento_criar(ponto_criar(x1, y1), ponto_criar(x2, y2));
+                s->id = line_id; 
+                list_insert_back(segmentos, s);
+            }
         }
-        else if (el->tipo == RECTANGLE) {
-            double x = retangulo_get_x(el->forma);
-            double y = retangulo_get_y(el->forma);
-            double w = retangulo_get_largura(el->forma);
-            double h = retangulo_get_altura(el->forma);
-
-            Ponto p1 = ponto_criar(x, y);
-            Ponto p2 = ponto_criar(x + w, y);
-            Ponto p3 = ponto_criar(x + w, y + h);
-            Ponto p4 = ponto_criar(x, y + h);
-
-            Segmento *s1 = malloc(sizeof(Segmento)); *s1 = segmento_criar(p1, p2);
-            Segmento *s2 = malloc(sizeof(Segmento)); *s2 = segmento_criar(p2, p3);
-            Segmento *s3 = malloc(sizeof(Segmento)); *s3 = segmento_criar(p3, p4);
-            Segmento *s4 = malloc(sizeof(Segmento)); *s4 = segmento_criar(p4, p1);
-
-            list_insert_back(segmentos, s1);
-            list_insert_back(segmentos, s2);
-            list_insert_back(segmentos, s3);
-            list_insert_back(segmentos, s4);
-        }
+        // Rectangles are NOT barriers - they become barriers only through command 'a'
+        // which converts them to 4 LINE segments with ID >= 5000
     }
     return segmentos;
 }
@@ -189,6 +176,7 @@ LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba) {
         geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
     }
 
+    // Expande para incluir a bomba se ela estiver fora
     if (centro_bomba.x < min_x) min_x = centro_bomba.x;
     if (centro_bomba.x > max_x) max_x = centro_bomba.x;
     if (centro_bomba.y < min_y) min_y = centro_bomba.y;
@@ -196,39 +184,27 @@ LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba) {
 
     double largura = max_x - min_x;
     double altura = max_y - min_y;
+    // Margem de segurança de 10%
+    double dx = (largura > 0) ? largura * 0.10 : 50.0;
+    double dy = (altura > 0) ? altura * 0.10 : 50.0;
 
-    double dx = largura * 0.10;
-    double dy = altura * 0.10;
-
-    if (dx < 10.0) dx = 10.0;
-    if (dy < 10.0) dy = 10.0;
-
-    min_x -= dx;
-    min_y -= dy;
-    max_x += dx;
-    max_y += dy;
+    min_x -= dx; min_y -= dy;
+    max_x += dx; max_y += dy;
 
     Ponto p1 = ponto_criar(min_x, min_y);
     Ponto p2 = ponto_criar(max_x, min_y);
     Ponto p3 = ponto_criar(max_x, max_y);
     Ponto p4 = ponto_criar(min_x, max_y);
 
-    Segmento *s_baixo = malloc(sizeof(Segmento)); 
-    *s_baixo = segmento_criar(p1, p2);
+    Segmento *s1 = malloc(sizeof(Segmento)); *s1 = segmento_criar(p1, p2); s1->id = -1;
+    Segmento *s2 = malloc(sizeof(Segmento)); *s2 = segmento_criar(p2, p3); s2->id = -1;
+    Segmento *s3 = malloc(sizeof(Segmento)); *s3 = segmento_criar(p3, p4); s3->id = -1;
+    Segmento *s4 = malloc(sizeof(Segmento)); *s4 = segmento_criar(p4, p1); s4->id = -1;
 
-    Segmento *s_direita = malloc(sizeof(Segmento)); 
-    *s_direita = segmento_criar(p2, p3);
-
-    Segmento *s_cima = malloc(sizeof(Segmento)); 
-    *s_cima = segmento_criar(p3, p4);
-
-    Segmento *s_esquerda = malloc(sizeof(Segmento)); 
-    *s_esquerda = segmento_criar(p4, p1);
-
-    list_insert_back(biombo, s_baixo);
-    list_insert_back(biombo, s_direita);
-    list_insert_back(biombo, s_cima);
-    list_insert_back(biombo, s_esquerda);
+    list_insert_back(biombo, s1);
+    list_insert_back(biombo, s2);
+    list_insert_back(biombo, s3);
+    list_insert_back(biombo, s4);
 
     return biombo;
 }
@@ -239,7 +215,9 @@ void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, 
 
     int n = list_size(g->formas);
     if (n == 0) {
-        mx = 0; my = 0; Mx = 1000; My = 1000;
+        if (min_x) *min_x = 0; if (min_y) *min_y = 0;
+        if (max_x) *max_x = 1000; if (max_y) *max_y = 1000;
+        return;
     }
 
     for (int i = 0; i < n; i++) {
@@ -344,7 +322,7 @@ void geo_alterar_cor(Geo geo, int id, const char *cor) {
     }
 }
 
-void geo_clonar_forma(Geo geo, int id) {
+void geo_clonar_forma(Geo geo, int id, double dx, double dy) {
     struct Geo_st *g = (struct Geo_st *)geo;
     int n = list_size(g->formas);
     for (int i = 0; i < n; i++) {
@@ -352,9 +330,11 @@ void geo_clonar_forma(Geo geo, int id) {
         int el_id = -1;
         if (el->tipo == CIRCLE) el_id = circulo_get_id(el->forma);
         else if (el->tipo == RECTANGLE) el_id = retangulo_get_id(el->forma);
+        else if (el->tipo == LINE) el_id = line_get_id(el->forma);
+        else if (el->tipo == TEXT) el_id = text_get_id(el->forma);
         
         if (el_id == id) {
-            double dx = 10.0, dy = 10.0;
+            // O qry.c define o ID novo como id + 10000.
             int new_id = id + 10000;
 
             if (el->tipo == CIRCLE) {
@@ -362,12 +342,27 @@ void geo_clonar_forma(Geo geo, int id) {
                 void* novo = circulo_criar(new_id, circulo_get_x(c)+dx, circulo_get_y(c)+dy, 
                                            circulo_get_raio(c), circulo_get_cor_borda(c), circulo_get_cor_preenchimento(c));
                 inserir_forma(geo, CIRCLE, novo);
-            } else if (el->tipo == RECTANGLE) {
+            } 
+            else if (el->tipo == RECTANGLE) {
                 void* r = el->forma;
                 void* novo = retangulo_criar(new_id, retangulo_get_x(r)+dx, retangulo_get_y(r)+dy, 
                                              retangulo_get_largura(r), retangulo_get_altura(r),
                                              retangulo_get_cor_borda(r), retangulo_get_cor_preenchimento(r));
                 inserir_forma(geo, RECTANGLE, novo);
+            }
+            else if (el->tipo == LINE) {
+                void* l = el->forma;
+                void* novo = line_create(new_id, line_get_x1(l)+dx, line_get_y1(l)+dy, 
+                                         line_get_x2(l)+dx, line_get_y2(l)+dy, 
+                                         line_get_color(l));
+                inserir_forma(geo, LINE, novo);
+            }
+            else if (el->tipo == TEXT) {
+                void* t = el->forma;
+                void* novo = text_create(new_id, text_get_x(t)+dx, text_get_y(t)+dy, 
+                                         text_get_border_color(t), text_get_fill_color(t),
+                                         text_get_anchor(t), text_get_text(t));
+                inserir_forma(geo, TEXT, novo);
             }
             return;
         }
