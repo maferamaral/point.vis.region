@@ -1,9 +1,9 @@
-/*
+/**
  * arvore_seg.h
  * 
- * TAD Árvore de Segmentos Ativos
- * Árvore binária de busca especializada para o algoritmo de varredura angular.
- * Ordena segmentos pela distância ao ponto de vista no ângulo atual.
+ * TAD Árvore de Segmentos Ativos (AVL)
+ * Árvore balanceada para o algoritmo de varredura angular.
+ * Ordena segmentos por TOPOLOGIA RELATIVA (área orientada), NÃO por distância.
  */
 
 #ifndef ARVORE_SEG_H
@@ -15,32 +15,32 @@
 typedef void* ArvoreSegmentos;
 
 /* ============================================================================
- * Funções de Criação e Destruição
+ * Criação e Destruição
  * ============================================================================ */
 
 /**
  * Cria uma nova árvore de segmentos.
- * @param origem Ponto de vista (origem dos raios)
+ * @param origem Ponto de observação (fonte de luz)
  * @return Nova árvore, ou NULL em caso de erro
  */
 ArvoreSegmentos arvore_seg_criar(Ponto origem);
 
 /**
- * Destroi a árvore de segmentos.
+ * Destrói a árvore de segmentos.
+ * NÃO destrói os segmentos armazenados (apenas os nós).
  * @param arvore Árvore a ser destruída
- * @note NÃO destrói os segmentos armazenados!
  */
 void arvore_seg_destruir(ArvoreSegmentos arvore);
 
 /* ============================================================================
- * Funções de Modificação
+ * Modificação
  * ============================================================================ */
 
 /**
  * Atualiza o ângulo atual da varredura.
- * DEVE ser chamada antes de inserções/buscas para manter ordenação correta.
+ * DEVE ser chamada antes de inserções/buscas.
  * @param arvore Árvore de segmentos
- * @param angulo Novo ângulo (radianos)
+ * @param angulo Novo ângulo em radianos
  */
 void arvore_seg_definir_angulo(ArvoreSegmentos arvore, double angulo);
 
@@ -55,32 +55,30 @@ int arvore_seg_inserir(ArvoreSegmentos arvore, Segmento *seg);
 /**
  * Remove um segmento da árvore.
  * @param arvore Árvore de segmentos
- * @param seg Segmento a remover
+ * @param seg Segmento a remover (por ponteiro)
  * @return 1 se removeu com sucesso, 0 se não encontrou
  */
 int arvore_seg_remover(ArvoreSegmentos arvore, Segmento *seg);
 
 /* ============================================================================
- * Funções de Consulta
+ * Consulta
  * ============================================================================ */
 
 /**
  * Obtém o segmento mais próximo da origem (o "biombo").
  * @param arvore Árvore de segmentos
- * @return Segmento mais próximo, ou NULL se árvore vazia
+ * @return Segmento mais próximo, ou NULL se vazia
  */
 Segmento* arvore_seg_obter_primeiro(ArvoreSegmentos arvore);
 
 /**
  * Verifica se a árvore está vazia.
- * @param arvore Árvore de segmentos
  * @return 1 se vazia, 0 caso contrário
  */
 int arvore_seg_vazia(ArvoreSegmentos arvore);
 
 /**
  * Obtém o número de segmentos na árvore.
- * @param arvore Árvore de segmentos
  * @return Quantidade de segmentos
  */
 int arvore_seg_tamanho(ArvoreSegmentos arvore);

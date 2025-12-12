@@ -1,15 +1,9 @@
 #include "svg.h"
 #include "../utils/lista/lista.h"
+#include "../poligono/poligono.h"
 #include <stdlib.h>
 
-// Struct definition needed to access internals
-struct PoligonoVisibilidade_st {
-    LinkedList vertices;
-    Ponto centro;
-};
-
 void svg_iniciar(FILE* f, double x, double y, double w, double h) {
-    // ViewBox calculado dinamicamente
     fprintf(f, "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"%.2f %.2f %.2f %.2f\">\n", x, y, w, h);
 }
 
@@ -23,11 +17,16 @@ void svg_desenhar_cidade(FILE* f, Geo cidade) {
 
 void svg_desenhar_poligono(FILE* f, PoligonoVisibilidade pol, const char* cor, double opacidade) {
     if (!pol) return;
+    
+    // Usa API encapsulada (não acessa struct diretamente)
+    LinkedList vertices = poligono_get_vertices(pol);
+    if (vertices == NULL) return;
+    
     fprintf(f, "<polygon points=\"");
     
-    int n = list_size(pol->vertices);
+    int n = list_size(vertices);
     for (int i = 0; i < n; i++) {
-        Ponto* p = (Ponto*)list_get_at(pol->vertices, i);
+        Ponto* p = (Ponto*)list_get_at(vertices, i);
         fprintf(f, "%.2f,%.2f ", p->x, p->y);
     }
     
