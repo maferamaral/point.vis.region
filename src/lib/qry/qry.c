@@ -106,6 +106,65 @@ static bool forma_foi_atingida(PoligonoVisibilidade pol, ElementoGeo* el) {
 
 static int g_anteparo_id_counter = 5000;
 
+// Variáveis estáticas para rastrear a maior bounding box já calculada
+static int g_bbox_initialized = 0;
+static double g_bbox_acum_min_x = 0;
+static double g_bbox_acum_min_y = 0;
+static double g_bbox_acum_max_x = 0;
+static double g_bbox_acum_max_y = 0;
+
+// Macro para calcular área de uma bbox
+#define BBOX_AREA(minx, miny, maxx, maxy) (((maxx) - (minx)) * ((maxy) - (miny)))
+
+/**
+ * Atualiza a bounding box acumulada. A partir da segunda bbox,
+ * a área resultante não pode ser menor que a anterior.
+ * Usa a estratégia de expansão acumulativa (união de bboxes).
+ * Também inclui as coordenadas extras (como a posição da bomba).
+ */
+static void atualizar_bbox_acumulada(double *min_x, double *min_y, double *max_x, double *max_y,
+                                     double extra_x, double extra_y) {
+    // Primeiro, expandir para incluir as coordenadas extras (posição da bomba)
+    if (extra_x < *min_x) *min_x = extra_x;
+    if (extra_x > *max_x) *max_x = extra_x;
+    if (extra_y < *min_y) *min_y = extra_y;
+    if (extra_y > *max_y) *max_y = extra_y;
+    
+    if (!g_bbox_initialized) {
+        // Primeira bbox: inicializa com os valores atuais
+        g_bbox_acum_min_x = *min_x;
+        g_bbox_acum_min_y = *min_y;
+        g_bbox_acum_max_x = *max_x;
+        g_bbox_acum_max_y = *max_y;
+        g_bbox_initialized = 1;
+    } else {
+        // BBoxes subsequentes: expande para incluir a nova região
+        // (Nunca encolhe - apenas cresce ou mantém)
+        if (*min_x < g_bbox_acum_min_x) g_bbox_acum_min_x = *min_x;
+        if (*min_y < g_bbox_acum_min_y) g_bbox_acum_min_y = *min_y;
+        if (*max_x > g_bbox_acum_max_x) g_bbox_acum_max_x = *max_x;
+        if (*max_y > g_bbox_acum_max_y) g_bbox_acum_max_y = *max_y;
+    }
+    
+    // Retorna a bbox acumulada
+    *min_x = g_bbox_acum_min_x;
+    *min_y = g_bbox_acum_min_y;
+    *max_x = g_bbox_acum_max_x;
+    *max_y = g_bbox_acum_max_y;
+}
+
+/**
+ * Reseta o estado da bounding box acumulada.
+ * Deve ser chamada no início de cada processamento de arquivo QRY.
+ */
+static void resetar_bbox_acumulada(void) {
+    g_bbox_initialized = 0;
+    g_bbox_acum_min_x = 0;
+    g_bbox_acum_min_y = 0;
+    g_bbox_acum_max_x = 0;
+    g_bbox_acum_max_y = 0;
+}
+
 static void adicionar_forma_geo(LinkedList formas, void* nova_forma, TipoForma tipo) {
     ElementoGeo* novo_el = malloc(sizeof(ElementoGeo));
     novo_el->tipo = tipo;
@@ -114,6 +173,9 @@ static void adicionar_forma_geo(LinkedList formas, void* nova_forma, TipoForma t
 }
 
 void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const char* geoName) {
+    // Resetar estado da bbox acumulada para este arquivo QRY
+    resetar_bbox_acumulada();
+    
     char *qryBase = strrchr(qryPath, '/');
     qryBase = (qryBase) ? qryBase + 1 : (char*)qryPath;
     char qryNoExt[100]; strcpy(qryNoExt, qryBase); 
@@ -172,7 +234,25 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
 
                 if (id >= id_ini && id <= id_fim) {
                     if (el->tipo == LINE) {
-                        continue; 
+                        // Linhas: a original é substituída por um anteparo com mesma geometria
+                        void* l = el->forma;
+                        double x1 = line_get_x1(l);
+                        double y1 = line_get_y1(l);
+                        double x2 = line_get_x2(l);
+                        double y2 = line_get_y2(l);
+                        const char* cor = line_get_color(l);
+                        
+                        int seg_id = g_anteparo_id_counter++;
+                        void* new_line = line_create(seg_id, x1, y1, x2, y2, cor);
+                        adicionar_forma_geo(novas_formas, new_line, LINE);
+                        
+                        fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
+                                id, obter_tipo_str(LINE), seg_id, x1, y1, x2, y2);
+                        
+                        // Marca para remoção (a linha original é substituída pelo anteparo)
+                        int* ptr_id = malloc(sizeof(int)); *ptr_id = id;
+                        list_insert_back(ids_remover, ptr_id);
+                        continue;
                     }
 
                     int* ptr_id = malloc(sizeof(int)); *ptr_id = id;
@@ -185,31 +265,21 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
                         double r = circulo_get_raio(c);
                         const char* cor_borda = circulo_get_cor_borda(c);
 
+                        int seg_id = g_anteparo_id_counter++;
+                        void* seg = NULL;
+                        
                         if (orientacao == 'h') {
-                            int id1 = g_anteparo_id_counter++;
-                            void* l1 = line_create(id1, cx - r, cy, cx, cy, cor_borda);
-                            adicionar_forma_geo(novas_formas, l1, LINE);
+                            // Segmento horizontal passando pelo centro
+                            seg = line_create(seg_id, cx - r, cy, cx + r, cy, cor_borda);
                             fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
-                                    id, obter_tipo_str(CIRCLE), id1, cx - r, cy, cx, cy);
-
-                            int id2 = g_anteparo_id_counter++;
-                            void* l2 = line_create(id2, cx, cy, cx + r, cy, cor_borda);
-                            adicionar_forma_geo(novas_formas, l2, LINE);
-                            fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
-                                    id, obter_tipo_str(CIRCLE), id2, cx, cy, cx + r, cy);
+                                    id, obter_tipo_str(CIRCLE), seg_id, cx - r, cy, cx + r, cy);
                         } else {
-                            int id1 = g_anteparo_id_counter++;
-                            void* l1 = line_create(id1, cx, cy - r, cx, cy, cor_borda);
-                            adicionar_forma_geo(novas_formas, l1, LINE);
+                            // Segmento vertical passando pelo centro
+                            seg = line_create(seg_id, cx, cy - r, cx, cy + r, cor_borda);
                             fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
-                                    id, obter_tipo_str(CIRCLE), id1, cx, cy - r, cx, cy);
-
-                            int id2 = g_anteparo_id_counter++;
-                            void* l2 = line_create(id2, cx, cy, cx, cy + r, cor_borda);
-                            adicionar_forma_geo(novas_formas, l2, LINE);
-                            fprintf(ftxt, "\t%d (%s) -> %d (anteparo) %.2f %.2f %.2f %.2f\n", 
-                                    id, obter_tipo_str(CIRCLE), id2, cx, cy, cx, cy + r);
+                                    id, obter_tipo_str(CIRCLE), seg_id, cx, cy - r, cx, cy + r);
                         }
+                        adicionar_forma_geo(novas_formas, seg, LINE);
                     }
                     else if (el->tipo == RECTANGLE) {
                         void* r = el->forma;
@@ -301,8 +371,16 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
         if (is_bomb) {
             Ponto bomba = criar_ponto(x, y);
 
+            // Atualizar bbox acumulada com posição da bomba ANTES de calcular visibilidade
+            geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
+            atualizar_bbox_acumulada(&min_x, &min_y, &max_x, &max_y, x, y);
+            
             LinkedList barreiras = geo_obter_todas_barreiras(cidade);
-            LinkedList biombo = geo_gerar_biombo(cidade, bomba);
+            // Usar biombo com limites da bbox acumulada para garantir que
+            // o polígono de visibilidade nunca diminui
+            LinkedList biombo = geo_gerar_biombo_com_limites(cidade, bomba, 
+                                    g_bbox_acum_min_x, g_bbox_acum_min_y, 
+                                    g_bbox_acum_max_x, g_bbox_acum_max_y);
 
             while(!list_is_empty(biombo)) {
                 list_insert_back(barreiras, list_remove_front(biombo));
@@ -345,36 +423,44 @@ void qry_processar(Geo cidade, const char* qryPath, const char* outPath, const c
             }
             list_destroy(to_remove_ids);
 
+
             if (strcmp(sfx, "-") == 0) {
                 // Store the polygon to draw at the end (after city is drawn with final state)
                 list_insert_back(visibility_polygons, pol);
+                // Importante: atualizar bbox para incluir a posição da bomba
+                geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
+                atualizar_bbox_acumulada(&min_x, &min_y, &max_x, &max_y, x, y);
             } else {
                 char snapshotPath[512];
                 sprintf(snapshotPath, "%s/%s-%s-%s.svg", outPath, geoName, qryNoExt, sfx);
                 FILE *fsnap = fopen(snapshotPath, "w");
                 if (fsnap) {
                     geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
+                    atualizar_bbox_acumulada(&min_x, &min_y, &max_x, &max_y, x, y);
                     svg_iniciar(fsnap, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
                     svg_desenhar_cidade(fsnap, cidade);
                     svg_desenhar_poligono(fsnap, pol, "yellow", 0.5);
                     svg_finalizar(fsnap);
                     fclose(fsnap);
                 }
-            visibilidade_destruir(pol);
-            destruir_ponto(bomba); // Don't forget to free bomb point
+                visibilidade_destruir(pol);  // Only destroy if not stored in list
             }
+            
+            // Cleanup - sempre executado independente do sufixo
+            destruir_ponto(bomba);
+            
             while(!list_is_empty(barreiras)) {
-                // geo_obter_todas_barreiras returns new segments, we must free them
-                // But list_remove_front returns void* (Segmento).
                 destruir_segmento((Segmento)list_remove_front(barreiras));
             }
             list_destroy(barreiras);
         }
+
     }
 
     // Draw final SVG with city in current state (after all commands) and all visibility polygons
     if (fsvg_final) {
         geo_get_bounding_box(cidade, &min_x, &min_y, &max_x, &max_y);
+        atualizar_bbox_acumulada(&min_x, &min_y, &max_x, &max_y, min_x, min_y);
         svg_iniciar(fsvg_final, min_x - margin, min_y - margin, (max_x - min_x) + 2*margin, (max_y - min_y) + 2*margin);
         svg_desenhar_cidade(fsvg_final, cidade);
         

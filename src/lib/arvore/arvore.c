@@ -294,8 +294,34 @@ Segmento arvore_obter_primeiro(ArvoreSegmentos arvore)
     ArvoreInternal *arv = (ArvoreInternal*)arvore;
     if (arv == NULL || arv->raiz == NULL) return NULL;
     
-    NoArvore *minimo = encontrar_minimo(arv->raiz);
-    return minimo ? minimo->segmento : NULL;
+    /* IMPORTANTE: A BST não é reorganizada quando o ângulo muda.
+     * Precisamos fazer busca linear por todos os segmentos para encontrar
+     * o que está mais próximo da origem no ângulo ATUAL. */
+    
+    Segmento mais_proximo = NULL;
+    double menor_dist = 1e18;
+    
+    /* Busca usando pilha iterativa */
+    NoArvore *stack[1000];
+    int stack_top = 0;
+    stack[stack_top++] = arv->raiz;
+    
+    while (stack_top > 0)
+    {
+        NoArvore *atual = stack[--stack_top];
+        
+        double dist = distancia_raio_segmento(arv->origem, arv->angulo, atual->segmento);
+        if (dist < menor_dist)
+        {
+            menor_dist = dist;
+            mais_proximo = atual->segmento;
+        }
+        
+        if (atual->direita != NULL) stack[stack_top++] = atual->direita;
+        if (atual->esquerda != NULL) stack[stack_top++] = atual->esquerda;
+    }
+    
+    return mais_proximo;
 }
 
 Segmento arvore_obter_proximo(ArvoreSegmentos arvore, Segmento seg)

@@ -186,19 +186,22 @@ static int comparar_eventos(const void *a, const void *b)
     Evento *e1 = *(Evento**)a;
     Evento *e2 = *(Evento**)b;
     
+    /* 1. Primeiro: ordenar por ângulo (ascendente) */
     if (fabs(e1->angulo - e2->angulo) > EPSILON)
     {
         return (e1->angulo < e2->angulo) ? -1 : 1;
     }
     
-    if (e1->tipo != e2->tipo)
-    {
-        return (e1->tipo == EVENTO_INICIO) ? -1 : 1;
-    }
-    
+    /* 2. Segundo: ordenar por distância (menor primeiro) */
     if (fabs(e1->distancia - e2->distancia) > EPSILON)
     {
         return (e1->distancia < e2->distancia) ? -1 : 1;
+    }
+    
+    /* 3. Terceiro: se mesmo ângulo e distância, INICIO antes de FIM */
+    if (e1->tipo != e2->tipo)
+    {
+        return (e1->tipo == EVENTO_INICIO) ? -1 : 1;
     }
     
     return 0;
@@ -238,10 +241,23 @@ static LinkedList extrair_eventos(LinkedList segmentos, Ponto origem)
     {
         Segmento seg = (Segmento)list_get_at(segmentos, i);
         
-        Evento *e1 = criar_evento(get_segmento_p1(seg), EVENTO_INICIO, seg, origem);
-        if (e1 != NULL) list_insert_back(eventos, e1);
+        Ponto p1 = get_segmento_p1(seg);
+        Ponto p2 = get_segmento_p2(seg);
         
-        Evento *e2 = criar_evento(get_segmento_p2(seg), EVENTO_FIM, seg, origem);
+        double angulo1 = ponto_angulo_polar(origem, p1);
+        double angulo2 = ponto_angulo_polar(origem, p2);
+        
+        // O ponto com menor ângulo é INICIO, o com maior é FIM
+        Evento *e1, *e2;
+        if (angulo1 <= angulo2) {
+            e1 = criar_evento(p1, EVENTO_INICIO, seg, origem);
+            e2 = criar_evento(p2, EVENTO_FIM, seg, origem);
+        } else {
+            e1 = criar_evento(p2, EVENTO_INICIO, seg, origem);
+            e2 = criar_evento(p1, EVENTO_FIM, seg, origem);
+        }
+        
+        if (e1 != NULL) list_insert_back(eventos, e1);
         if (e2 != NULL) list_insert_back(eventos, e2);
     }
     
@@ -312,7 +328,19 @@ PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_en
     if (oy < min_y) min_y = oy;
     if (oy > max_y) max_y = oy;
     
-    criar_bounding_box(segmentos, min_x, min_y, max_x, max_y);
+    // Verificar se já existe bounding box (segmentos com ID negativo)
+    int tem_bbox = 0;
+    int sz_check = list_size(segmentos);
+    for(int i=0; i<sz_check && !tem_bbox; i++)
+    {
+        Segmento seg = (Segmento)list_get_at(segmentos, i);
+        if (get_segmento_id(seg) < 0) tem_bbox = 1;
+    }
+    
+    if (!tem_bbox)
+    {
+        criar_bounding_box(segmentos, min_x, min_y, max_x, max_y);
+    }
     
     // Split segments at angle 0
     // Note: Iterate cautiously as we modify the list
@@ -426,7 +454,21 @@ PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_en
             arvore_inserir(arvore, evento->segmento);
             Segmento novo_biombo = arvore_obter_primeiro(arvore);
             
-            if (novo_biombo == evento->segmento && biombo != evento->segmento)
+            // Verificar se o novo biombo e o biombo atual compartilham o vértice atual
+            // Se sim, não trocar - manter o biombo atual para preservar a quina
+            int compartilham_vertice = 0;
+            if (biombo != NULL && novo_biombo != NULL && novo_biombo != biombo)
+            {
+                double dist_biombo = distancia_raio_segmento(origem, evento->angulo, biombo);
+                double dist_novo = distancia_raio_segmento(origem, evento->angulo, novo_biombo);
+                // Se as distâncias são praticamente iguais, compartilham o vértice
+                if (fabs(dist_biombo - dist_novo) < EPSILON * 10)
+                {
+                    compartilham_vertice = 1;
+                }
+            }
+            
+            if (novo_biombo == evento->segmento && biombo != evento->segmento && !compartilham_vertice)
             {
                 if (biombo != NULL && ultimo_ponto != NULL)
                 {
@@ -511,6 +553,18 @@ PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_en
         destruir_evento(list_remove_front(eventos));
     }
     list_destroy(eventos);
+    
+    // Se polígono tem menos de 3 vértices, criar polígono que cobre todo o bounding box
+    // Isso acontece quando não há anteparos bloqueando a visão
+    if (poligono_num_vertices(resultado) < 3)
+    {
+        poligono_destruir(resultado);
+        resultado = poligono_criar();
+        poligono_inserir_vertice(resultado, min_x, min_y);
+        poligono_inserir_vertice(resultado, max_x, min_y);
+        poligono_inserir_vertice(resultado, max_x, max_y);
+        poligono_inserir_vertice(resultado, min_x, max_y);
+    }
     
     return (PoligonoVisibilidade)resultado;
 }

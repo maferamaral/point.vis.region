@@ -207,6 +207,59 @@ LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba) {
     return biombo;
 }
 
+LinkedList geo_gerar_biombo_com_limites(Geo geo, Ponto centro_bomba, 
+                                         double ext_min_x, double ext_min_y,
+                                         double ext_max_x, double ext_max_y) {
+    struct Geo_st *g = (struct Geo_st *)geo;
+    LinkedList biombo = list_create();
+
+    double min_x = DBL_MAX, min_y = DBL_MAX;
+    double max_x = -DBL_MAX, max_y = -DBL_MAX;
+
+    double cx = get_ponto_x(centro_bomba);
+    double cy = get_ponto_y(centro_bomba);
+
+    if (list_is_empty(g->formas)) {
+        min_x = cx; max_x = cx;
+        min_y = cy; max_y = cy;
+    } else {
+        geo_get_bounding_box(geo, &min_x, &min_y, &max_x, &max_y);
+    }
+
+    // Expande para incluir a bomba
+    if (cx < min_x) min_x = cx;
+    if (cx > max_x) max_x = cx;
+    if (cy < min_y) min_y = cy;
+    if (cy > max_y) max_y = cy;
+
+    // Garantir que não diminui em relação aos limites externos (acumulados)
+    if (ext_min_x < min_x) min_x = ext_min_x;
+    if (ext_max_x > max_x) max_x = ext_max_x;
+    if (ext_min_y < min_y) min_y = ext_min_y;
+    if (ext_max_y > max_y) max_y = ext_max_y;
+
+    double largura = max_x - min_x;
+    double altura = max_y - min_y;
+    // Margem de segurança de 10%
+    double dx = (largura > 0) ? largura * 0.10 : 50.0;
+    double dy = (altura > 0) ? altura * 0.10 : 50.0;
+
+    min_x -= dx; min_y -= dy;
+    max_x += dx; max_y += dy;
+
+    Segmento s1 = criar_segmento(-1, -1, min_x, min_y, max_x, min_y, "none");
+    Segmento s2 = criar_segmento(-1, -1, max_x, min_y, max_x, max_y, "none");
+    Segmento s3 = criar_segmento(-1, -1, max_x, max_y, min_x, max_y, "none");
+    Segmento s4 = criar_segmento(-1, -1, min_x, max_y, min_x, min_y, "none");
+
+    list_insert_back(biombo, s1);
+    list_insert_back(biombo, s2);
+    list_insert_back(biombo, s3);
+    list_insert_back(biombo, s4);
+
+    return biombo;
+}
+
 void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, double *max_y) {
     struct Geo_st *g = (struct Geo_st *)geo;
     double mx = DBL_MAX, my = DBL_MAX, Mx = -DBL_MAX, My = -DBL_MAX;

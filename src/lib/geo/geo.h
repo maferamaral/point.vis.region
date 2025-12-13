@@ -14,6 +14,9 @@ void geo_escrever_svg(Geo geo, FILE *svg);
 LinkedList geo_get_formas(Geo geo);
 LinkedList geo_obter_todas_barreiras(Geo geo);
 LinkedList geo_gerar_biombo(Geo geo, Ponto centro_bomba);
+LinkedList geo_gerar_biombo_com_limites(Geo geo, Ponto centro_bomba, 
+                                         double ext_min_x, double ext_min_y,
+                                         double ext_max_x, double ext_max_y);
 void geo_get_bounding_box(Geo geo, double *min_x, double *min_y, double *max_x, double *max_y);
 void geo_destruir(Geo geo);
 void geo_remover_forma(Geo geo, int id);
