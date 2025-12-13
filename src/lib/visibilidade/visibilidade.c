@@ -18,8 +18,6 @@
 #include "../arvore/arvore.h"
 #include "../poligono/poligono.h"
 
-// Note: Removed forma includes to avoid dependency on shape structure details if not strict necessary.
-
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -47,14 +45,6 @@ PoligonoVisibilidade visibilidade_calcular(Ponto centro, LinkedList barreiras) {
     // Default call from src's QRY
     const char *sort_str = (g_sort_method == 'm') ? "mergesort" : "qsort";
     int limiar = 10;
-    
-    // We treat barreiras as a list of Segmento*
-    // Min/Max are not provided, we must calculate bounding box of segments + margin?
-    // Or just pass large values?
-    // srcAndre calculates bounding box internally if limits are provided.
-    // SRC `qry.c` passes `min_x`, etc to `geo_get_bounding_box`.
-    // But `visibilidade_calcular` signature only has center and barriers.
-    // We should compute BB from barriers.
     
     double min_x = 1e9, min_y = 1e9, max_x = -1e9, max_y = -1e9;
     
@@ -133,17 +123,10 @@ bool visibilidade_segmento_atingido(PoligonoVisibilidade pol, Ponto p1, Ponto p2
     return false;
 }
 
-/* ============================================================================
- * Estruturas Internas
- * ============================================================================ */
-
-/* Tipo de vértice (evento) */
 typedef enum {
     EVENTO_INICIO,
     EVENTO_FIM
 } TipoEvento;
-
-/* Evento da varredura (vértice de um segmento) */
 typedef struct evento
 {
     Ponto ponto;        /* Coordenada do vértice */
@@ -152,10 +135,6 @@ typedef struct evento
     TipoEvento tipo;    /* INICIO ou FIM */
     Segmento segmento;  /* Segmento ao qual pertence */
 } Evento;
-
-/* ============================================================================
- * Funções Auxiliares - Eventos
- * ============================================================================ */
 
 static Evento* criar_evento(Ponto ponto, TipoEvento tipo, Segmento seg, Ponto origem)
 {
@@ -186,19 +165,16 @@ static int comparar_eventos(const void *a, const void *b)
     Evento *e1 = *(Evento**)a;
     Evento *e2 = *(Evento**)b;
     
-    /* 1. Primeiro: ordenar por ângulo (ascendente) */
     if (fabs(e1->angulo - e2->angulo) > EPSILON)
     {
         return (e1->angulo < e2->angulo) ? -1 : 1;
     }
     
-    /* 2. Segundo: ordenar por distância (menor primeiro) */
     if (fabs(e1->distancia - e2->distancia) > EPSILON)
     {
         return (e1->distancia < e2->distancia) ? -1 : 1;
     }
     
-    /* 3. Terceiro: se mesmo ângulo e distância, INICIO antes de FIM */
     if (e1->tipo != e2->tipo)
     {
         return (e1->tipo == EVENTO_INICIO) ? -1 : 1;
@@ -206,10 +182,6 @@ static int comparar_eventos(const void *a, const void *b)
     
     return 0;
 }
-
-/* ============================================================================
- * Funções Auxiliares - Segmentos
- * ============================================================================ */
 
 static void destruir_segmento_callback(void *ptr)
 {
@@ -296,10 +268,6 @@ static void ordenar_eventos_lista(LinkedList eventos, const char *tipo_ordenacao
     free(arr);
 }
 
-/* ============================================================================
- * Algoritmo Principal de Visibilidade
- * ============================================================================ */
-
 PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_entrada,
                                             double min_x, double min_y,
                                             double max_x, double max_y,
@@ -328,7 +296,6 @@ PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_en
     if (oy < min_y) min_y = oy;
     if (oy > max_y) max_y = oy;
     
-    // Verificar se já existe bounding box (segmentos com ID negativo)
     int tem_bbox = 0;
     int sz_check = list_size(segmentos);
     for(int i=0; i<sz_check && !tem_bbox; i++)
@@ -340,14 +307,7 @@ PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_en
     if (!tem_bbox)
     {
         criar_bounding_box(segmentos, min_x, min_y, max_x, max_y);
-    }
-    
-    // Split segments at angle 0
-    // Note: Iterate cautiously as we modify the list
-    // Best way: iterate backwards or restart?
-    // srcAndre uses linked list nodes directly. Here we use array-list (likely) or list that supports index.
-    // list_size, list_get_at, list_remove_at...
-    // Let's assume list_remove_at works.
+    }    
     
     int sz = list_size(segmentos);
     for(int i=0; i<sz; i++)
@@ -383,12 +343,6 @@ PoligonoVisibilidade calcular_visibilidade(Ponto origem, LinkedList segmentos_en
                 list_insert_back(segmentos, s1);
                 list_insert_back(segmentos, s2);
                 
-                // Adjust index and size?
-                // We removed 1, added 2 at back.
-                // The current index 'i' now points to next element (former i+1).
-                // But we must process the new ones? No, new ones might cross 0 again? 
-                // Segments at 0 are split. The new ones end/start at 0, so they don't cross 0 strictly.
-                // We must decrement i to process the element that shifted into position i.
                 i--;
                 sz = list_size(segmentos); // update size
             }
